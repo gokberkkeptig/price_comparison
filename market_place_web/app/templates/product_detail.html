@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ product.name }} - Product Details</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/detail.css') }}">
+</head>
+<body>
+
+    <!-- Header Section -->
+    <header>
+        <nav>
+            <div class="logo">
+                <h1>{{ product.name }} - Product Details</h1>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Single Product Display -->
+    <div class="single-product-container">
+        <div class="product-detail-card">
+            <img src="{{ product.image_url }}" alt="{{ product.name }}">
+            <h2>{{ product.name }}</h2>
+            <!-- Display Category -->
+            <p class="category">Category: {{ product.sub_category.category.name }}</p>
+            <!-- Display Link to External Site -->
+            <p><a href="{{ product.link }}" target="_blank">View on Glovo</a></p>
+            <!-- Display Available Prices -->
+            <h3>Available Prices:</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Price (€)</th>
+                        <th>Store</th>
+                        <th>Location</th>
+                        <th>Last Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for price in product.prices %}
+                    <tr>
+                        <td>{{ price.price }}</td>
+                        <td>{{ price.store.name }}</td>
+                        <td>{{ price.location.city }}</td>
+                        <td>{{ price.last_updated.strftime('%Y-%m-%d') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <!-- Display the Most Recent Last Updated Date -->
+            {% if product.prices %}
+            <p class="last-updated">
+                Last Updated: {{ product.prices|map(attribute='last_updated')|max }}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="back-link">
+        <a href="{{ url_for('home') }}">Back to Product List</a>
+    </div>
+
+</body>
+</html>
