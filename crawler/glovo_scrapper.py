@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 
 # Correct DATABASE_URI assignment
-DATABASE_URI = 'postgresql://postgres:Gokb3rg.@localhost:5432/productdb'
+DATABASE_URI = os.getenv('DATABASE_URI', 'sqlite:///products.db')
 # Alternatively, use environment variable
 # DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///products.db')
 
