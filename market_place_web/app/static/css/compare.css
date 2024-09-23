@@ -199,4 +199,32 @@ body {
 @media (max-width: 992px) {
     .store-logo {
         width: 50px;
-        height: 50
+        height: 50px;
+    }
+}
+
+@media (max-width: 768px) {
+    .store-logo {
+        width: 45px;
+        height: 45px;
+    }
+}
+
+@media (max-width: 576px) {
+    .store-logo {
+        width: 40px;
+        height: 40px;
+    }
+
+    .product-name {
+        font-size: 1rem;
+    }
+
+    .attribute-label, .attribute-value {
+        font-size: 0.9rem;
+    }
+
+    .remove-button {
+        font-size: 1.2rem;
+    }
+}

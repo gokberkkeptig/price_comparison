@@ -53,17 +53,18 @@
                                 <span class="attribute-label">Category:</span>
                                 <span class="attribute-value">{{ product.sub_category.category.name }}</span>
                             </div>
-                            <div class="attribute">
-                                <i class="fas fa-stream"></i>
-                                <span class="attribute-label">Subcategory:</span>
-                                <span class="attribute-value">{{ product.sub_category.name }}</span>
-                            </div>
+
+                                    
                         </div>
                         <div class="store-logos my-3">
                             {% for price in product.prices %}
                             <a href="{{ price.store.link }}" target="_blank" class="store-info" title="View {{ product.name }} at {{ price.store.name }}">
                                 <img src="{{ url_for('static', filename='logos/' ~ price.store.name|lower|replace(' ', '_') ~ '.jpeg') }}" alt="{{ price.store.name }} Logo" class="store-logo">
                             </a>
+                            <div class="attribute">
+                                <i class="fas fa-tag"></i>
+                            <span class="attribute-value">{{ price.store.name}} </span>
+                            </div>
                             {% endfor %}
                         </div>
                     </div>

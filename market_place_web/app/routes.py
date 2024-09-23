@@ -64,10 +64,13 @@ def home():
 
     # Get distinct stores for the store filter
     stores = Store.query.order_by(Store.name.asc()).all()
+    
+    subcategories = SubCategory.query.order_by(SubCategory.name.asc()).all()
 
     return render_template('index.html', 
                            products=products_pagination.items, 
                            categories=categories, 
+                           SubCategory=subcategories,
                            stores=stores,
                            order_by=order_by, 
                            selected_category=category_filter, 
