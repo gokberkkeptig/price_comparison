@@ -722,7 +722,8 @@ async def scrape_product_details(session: ClientSession, link: str) -> list:
                         product_price = None  # Assign None if conversion fails
                 
                 image_url = item.find('img', class_='tile__image')['src'] if item.find('img', class_='tile__image') else 'N/A'
-
+                if product_price < 0.15:
+                    continue
                 all_products.append({
                     'link': link,
                     'sub_category': sub_category_name,
