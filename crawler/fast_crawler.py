@@ -1,4 +1,6 @@
-import requests
+import asyncio
+import aiohttp
+from aiohttp import ClientSession
 from bs4 import BeautifulSoup
 import logging
 import itertools
@@ -7,21 +9,16 @@ from datetime import datetime
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship, backref
 import argparse
 import os
+from concurrent.futures import ThreadPoolExecutor
 
-
-# Correct DATABASE_URI assignment
+# SQLAlchemy setup for PostgreSQL
 DATABASE_URI = os.getenv('DATABASE_URI', 'sqlite:///products.db')
-# Alternatively, use environment variable
-# DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///products.db')
-
 Base = declarative_base()
-engine = create_engine(DATABASE_URI)
-Session = sessionmaker(bind=engine)
-session = Session()
+engine = create_engine(DATABASE_URI, future=True)
+SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 # Define the Store model
 class Store(Base):
@@ -108,8 +105,7 @@ logging.basicConfig(
 
 BASE_URL = 'https://glovoapp.com'
 
-# Define the mapping of Main Categories to Subcategories
-# Define the mapping of Main Categories to Subcategories
+
 category_mapping = {
     "Beverages": {
         "Alcoholic Beverages": [
@@ -653,7 +649,6 @@ category_mapping = {
         ]
     }
 }
-
 # Utility functions to interact with the category mapping
 
 def find_main_category(subcategory_name):
@@ -668,33 +663,43 @@ def find_main_category(subcategory_name):
                 return main_category, None
     return "Uncategorized", "Uncategorized"
 
-def extract_subcategory_links(soup):
-    links = []
-    # Update the selectors based on the current website structure
-    carousel_elements = soup.find_all('div', {'class': 'carousel__content__element'})
-
-    for element in carousel_elements:
-        a_tag = element.find('a', href=True)
-        if a_tag:
-            link = a_tag['href']
-            if not link.startswith('http'):
-                link = BASE_URL + link 
-            links.append(link)
-    return links
-
-def scrape_product_details(link):
-    try:
-        time.sleep(2)  # Throttle requests
-        headers = {
-            'User-Agent': (
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-                ' AppleWebKit/537.36 (KHTML, like Gecko)'
-                ' Chrome/85.0.4183.102 Safari/537.36'
-            )
-        }
-        response = requests.get(link, headers=headers)
+async def fetch(session: ClientSession, url: str) -> str:
+    headers = {
+        'User-Agent': (
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            ' AppleWebKit/537.36 (KHTML, like Gecko)'
+            ' Chrome/85.0.4183.102 Safari/537.36'
+        )
+    }
+    async with session.get(url, headers=headers) as response:
         response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
+        return await response.text()
+
+async def extract_subcategory_links(session: ClientSession, url: str) -> list:
+    try:
+        html_content = await fetch(session, url)
+        soup = BeautifulSoup(html_content, 'html.parser')
+        links = []
+        carousel_elements = soup.find_all('div', {'class': 'carousel__content__element'})
+
+        for element in carousel_elements:
+            a_tag = element.find('a', href=True)
+            if a_tag:
+                link = a_tag['href']
+                if not link.startswith('http'):
+                    link = BASE_URL + link 
+                links.append(link)
+        return links
+    except Exception as e:
+        logging.error(f"Error fetching subcategory links from {url}: {e}")
+        return []
+
+async def scrape_product_details(session: ClientSession, link: str) -> list:
+    try:
+        await asyncio.sleep(1)  # Throttle requests
+        html_content = await fetch(session, link)
+        soup = BeautifulSoup(html_content, 'html.parser')
+
 
         all_products = []
         grids = soup.find_all('div', class_='grid')
@@ -728,139 +733,150 @@ def scrape_product_details(link):
                 })
         return all_products
 
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Error fetching {link}: {e}")
-        return []
-def upsert_product(session, product_data, store_name, location_name):
-    try:
-         # Get or create Store
-        store = session.query(Store).filter_by(name=store_name).first()
-        if not store:
-            store = Store(name=store_name)
-            print(store)
-            session.add(store)
-            session.commit()
-
-        # Get or create Location
-        location = session.query(Location).filter_by(city=location_name).first()
-        if not location:
-            location = Location(city=location_name)
-            session.add(location)
-            session.commit()
-
-        # Get or create Category
-        category = session.query(Category).filter_by(name=product_data['category']).first()
-        if not category:
-            category = Category(name=product_data['category'])
-            session.add(category)
-            session.commit()
-
-        # Get or create SubCategory
-        sub_category = session.query(SubCategory).filter_by(
-            name=product_data['sub_category'],
-            category_id=category.category_id
-        ).first()
-        if not sub_category:
-            sub_category = SubCategory(name=product_data['sub_category'], category=category)
-            session.add(sub_category)
-            session.commit()
-
-        # Get or create Product
-        product = session.query(Product).filter_by(
-            name=product_data['name'],
-            sub_category_id=sub_category.sub_category_id
-        ).first()
-        if not product:
-            product = Product(
-                name=product_data['name'],
-                sub_category=sub_category,
-                link=product_data['link'],
-                image_url=product_data['image_url']
-            )
-            session.add(product)
-            session.commit()
-        else:
-            # Update existing product details if necessary
-            product.link = product_data['link']
-            product.image_url = product_data['image_url']
-            session.commit()
-
-        # Insert or update ProductPrice
-        product_price = session.query(ProductPrice).filter_by(
-            product_id=product.product_id,
-            store_id=store.store_id,
-            location_id=location.location_id
-        ).first()
-
-        if not product_price:
-            # Insert new price entry
-            product_price = ProductPrice(
-                product=product,
-                store=store,
-                location=location,
-                price=product_data['price'],
-                last_updated=datetime.utcnow()
-            )
-            session.add(product_price)
-        else:
-            # Update existing price if it has changed
-            if product_price.price != product_data['price']:
-                product_price.price = product_data['price']
-                product_price.last_updated = datetime.utcnow()
-        session.commit()
-
-        logging.info(f"Upserted product: {product_data['name']}")
     except Exception as e:
-        logging.error(f"Failed to upsert product {product_data['name']}: {e}")
+        logging.error(f"Error fetching product details from {link}: {e}")
+        return []
 
+def upsert_product(db_session, product_data, store_name, location_name):
+    # Get or create Store
+    store = db_session.query(Store).filter_by(name=store_name).first()
+    if not store:
+        store = Store(name=store_name)
+        db_session.add(store)
+        db_session.commit()
 
-if __name__ == "__main__":
+    # Get or create Location
+    location = db_session.query(Location).filter_by(city=location_name).first()
+    if not location:
+        location = Location(city=location_name)
+        db_session.add(location)
+        db_session.commit()
+
+    # Get or create Category
+    category = db_session.query(Category).filter_by(name=product_data['category']).first()
+    if not category:
+        category = Category(name=product_data['category'])
+        db_session.add(category)
+        db_session.commit()
+
+    # Get or create SubCategory
+    sub_category = db_session.query(SubCategory).filter_by(
+        name=product_data['sub_category'],
+        category_id=category.category_id
+    ).first()
+    if not sub_category:
+        sub_category = SubCategory(name=product_data['sub_category'], category=category)
+        db_session.add(sub_category)
+        db_session.commit()
+
+    # Get or create Product
+    product = db_session.query(Product).filter_by(
+        name=product_data['name']
+    ).first()
+    if not product:
+        product = Product(
+            name=product_data['name'],
+            sub_category=sub_category,
+            link=product_data['link'],
+            image_url=product_data['image_url']
+        )
+        db_session.add(product)
+        db_session.commit()
+    else:
+        # Update existing product details if necessary
+        product.link = product_data['link']
+        product.image_url = product_data['image_url']
+        db_session.commit()
+
+    # Insert or update ProductPrice
+    product_price = db_session.query(ProductPrice).filter_by(
+        product_id=product.product_id,
+        store_id=store.store_id,
+        location_id=location.location_id
+    ).first()
+
+    if not product_price:
+        # Insert new price entry
+        product_price = ProductPrice(
+            product=product,
+            store=store,
+            location=location,
+            price=product_data['price'],
+            last_updated=datetime.utcnow()
+        )
+        db_session.add(product_price)
+    else:
+        # Update existing price if it has changed
+        if product_price.price != product_data['price']:
+            product_price.price = product_data['price']
+            product_price.last_updated = datetime.utcnow()
+    db_session.commit()
+
+async def scrape_store_location(store_name: str, location_name: str):
+    logging.info(f"Scraping {store_name} in {location_name}")
+    url = f"{BASE_URL}/it/it/{location_name}/{store_name}-{location_name[0:3]}/"
+
+    try:
+        async with ClientSession() as session:
+            subcategory_links = await extract_subcategory_links(session, url)
+            logging.info(f"Found {len(subcategory_links)} subcategories for {store_name} in {location_name}")
+
+            # Limit the number of concurrent tasks to avoid overwhelming the server
+            semaphore = asyncio.Semaphore(5)
+
+            async def sem_task(link):
+                async with semaphore:
+                    return await scrape_product_details(session, link)
+
+            tasks = [sem_task(link) for link in subcategory_links]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Handle exceptions in results
+            products = []
+            for result in results:
+                if isinstance(result, Exception):
+                    logging.error(f"Exception during scraping: {result}")
+                else:
+                    products.extend(result)
+
+            # Use ThreadPoolExecutor for database operations to avoid blocking the event loop
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                loop = asyncio.get_running_loop()
+                db_tasks = [
+                    loop.run_in_executor(
+                        executor, upsert_product, SessionLocal(), product, store_name, location_name
+                    ) for product in products
+                ]
+                await asyncio.gather(*db_tasks, return_exceptions=True)
+
+            logging.info(f"Data saved for {store_name} in {location_name}")
+
+    except Exception as e:
+        logging.error(f"Error scraping {store_name} in {location_name}: {e}")
+
+async def main():
     parser = argparse.ArgumentParser(description="Scrape product data from Glovo")
     parser.add_argument(
         "--stores",
         nargs="+",
-        choices=["penny", "conad", "deco"],
-        default=["penny", "conad", "deco"],
+        choices=["penny", "conad", "deco","crai","coop","dodeca"],
+        default=["penny", "conad", "deco","crai","coop","dodeca"],
         help="Stores to scrape"
     )
     parser.add_argument(
         "--locations",
         nargs="+",
-        choices=["roma"],
-        default=["roma"],
+        choices=["napoli"],
+        default=["napoli"],
         help="Locations to scrape"
     )
     args = parser.parse_args()
 
-    # Iterate through stores and locations
-    for store_name, location_name in itertools.product(args.stores, args.locations):
-        logging.info(f"Scraping {store_name} in {location_name}")
+    tasks = [
+        scrape_store_location(store_name, location_name)
+        for store_name, location_name in itertools.product(args.stores, args.locations)
+    ]
+    await asyncio.gather(*tasks)
 
-        # Update the URL format based on the actual Glovo URL structure
-        url = f"{BASE_URL}/it/it/{location_name}/{store_name}-{location_name[0:3]}/"
-
-        try:
-            headers = {
-                'User-Agent': (
-                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-                    ' AppleWebKit/537.36 (KHTML, like Gecko)'
-                    ' Chrome/85.0.4183.102 Safari/537.36'
-                )
-            }
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.content, 'html.parser')
-            subcategory_links = extract_subcategory_links(soup)
-
-            for link in subcategory_links:
-                logging.info(f"  Scraping subcategory: {link}")
-                products = scrape_product_details(link)
-                print(f'products:{products}')
-                for product in products:
-                    print(f'product:{product}')
-                    
-                    upsert_product(session, product, store_name, location_name)
-                logging.info(f"  Data saved for {store_name} in {location_name}")
-
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error fetching main page for {store_name} in {location_name}: {e}")
+if __name__ == "__main__":
+    asyncio.run(main())
