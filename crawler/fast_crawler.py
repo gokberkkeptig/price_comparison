@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import logging
 import itertools
 import time
+import re
 from datetime import datetime
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
@@ -657,7 +658,7 @@ def find_main_category(subcategory_name):
         if isinstance(subcategories, dict):
             for subcat_key, subcat_list in subcategories.items():
                 if subcategory_name in subcat_list:
-                    return main_category, subcat_key
+                    return subcategory_name, subcat_key
         else:
             if subcategory_name in subcategories:
                 return main_category, None
@@ -709,8 +710,9 @@ async def scrape_product_details(session: ClientSession, link: str) -> list:
         
             category_name, sub_category_key = find_main_category(sub_category_name)
             for item in grid.find_all('div', class_='tile'):
-                product_name = item.find('span', class_='tile__description').get_text(strip=True) if item.find('span', class_='tile__description') else 'N/A'
-                
+                raw_product_name = item.find('span', class_='tile__description').get_text(strip=True) if item.find('span', class_='tile__description') else 'N/A'
+                product_name = clean_product_name(raw_product_name)  # Clean the product name
+
                 # Extract and clean the price
                 product_price = item.find('span', class_='product-price__effective').get_text(strip=True) if item.find('span', 'product-price__effective') else 'N/A'
                 if product_price != 'N/A':
@@ -722,7 +724,7 @@ async def scrape_product_details(session: ClientSession, link: str) -> list:
                         product_price = None  # Assign None if conversion fails
                 
                 image_url = item.find('img', class_='tile__image')['src'] if item.find('img', class_='tile__image') else 'N/A'
-                if product_price < 0.15:
+                if product_price < 0.15 or product_price == 999:
                     continue
                 all_products.append({
                     'link': link,
@@ -737,6 +739,19 @@ async def scrape_product_details(session: ClientSession, link: str) -> list:
     except Exception as e:
         logging.error(f"Error fetching product details from {link}: {e}")
         return []
+def clean_product_name(name):
+    """
+    Removes any trailing ' - number' from the product name.
+    
+    Examples:
+        "Product Name - 123" -> "Product Name"
+        "Another Product-456" -> "Another Product"
+    """
+    if not isinstance(name, str):
+        return name
+    # This regex looks for a hyphen followed by optional spaces and digits at the end of the string
+    cleaned_name = re.sub(r'\s*-\s*\d+$', '', name)
+    return cleaned_name
 
 def upsert_product(db_session, product_data, store_name, location_name):
     # Get or create Store

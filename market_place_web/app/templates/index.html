@@ -1,8 +1,7 @@
 <!DOCTYPE html>
-<!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Head content -->
+    <!-- Head content remains the same -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Product Price Comparison</title>
@@ -26,9 +25,19 @@
         <h1>Product Price Comparison</h1>
     </header>
 
-    <!-- Filters -->
+    <!-- Combined Search and Filters -->
     <div class="container my-4">
         <form action="{{ url_for('home') }}" method="GET" id="filterForm" class="form-inline justify-content-center">
+            <!-- Search Query Input -->
+            <input 
+                type="text" 
+                name="query" 
+                placeholder="Search for a product..." 
+                value="{{ request.args.get('query', '') }}" 
+                class="form-control mr-2" 
+                style="width: 300px;"
+            >
+
             <!-- Sort By -->
             <label for="sort" class="mr-2">Sort by:</label>
             <select name="order_by" id="sort" class="form-control mr-4">
@@ -57,9 +66,14 @@
                     </option>
                 {% endfor %}
             </select>
+
+            <!-- Reset to First Page -->
+            <input type="hidden" name="page" value="1">
         </form>
+
         <script>
-            // Auto-submit form on sorting, category, or store change
+
+            // Auto-submit form on sorting, category, store, or search query change
             document.getElementById('sort').addEventListener('change', function() {
                 document.getElementById('filterForm').submit();
             });
@@ -69,15 +83,16 @@
             document.getElementById('store').addEventListener('change', function() {
                 document.getElementById('filterForm').submit();
             });
-        </script>
-    </div>
+            document.querySelector('input[name="query"]').addEventListener('input', function() {
+                // Debounce the search to prevent excessive submissions
+                clearTimeout(this.searchTimeout);
+                this.searchTimeout = setTimeout(() => {
+                    document.getElementById('filterForm').submit();
+                }, 500); // Adjust delay as needed
 
-    <!-- Search Form -->
-    <div class="container mb-4">
-        <form action="{{ url_for('home') }}" method="GET" class="form-inline justify-content-center">
-            <input type="text" name="query" placeholder="Search for a product..." value="{{ request.args.get('query', '') }}" class="form-control mr-2" style="width: 300px;">
-            <button type="submit" class="btn btn-primary">Search</button>
-        </form>
+            });
+        </script>
+
     </div>
 
     <!-- Warning Message -->
@@ -103,7 +118,7 @@
                             <img src="{{ product.image_url }}" alt="{{ product.name }}">
                             <h2>{{ product.name }}</h2>
                             <p class="category">{{ product.sub_category.category.name }}</p>
-                            <p class="price">Price:{{ min_price }} €</p>
+                            <p class="price">Price: {{ min_price }} €</p>
                         </a>
                     </div>
                 </div>
@@ -133,24 +148,16 @@
 
             let url = `/?page=${page}`;
 
-            // Get current query parameters
-            const orderBy = document.getElementById('sort').value;
-            const query = "{{ request.args.get('query', '') }}";
-            const category = "{{ selected_category }}";
-            const store = "{{ selected_store }}";
+            // Get current query parameters from the form
+            const form = document.getElementById('filterForm');
+            const formData = new FormData(form);
+            const params = new URLSearchParams(formData);
 
-            // Append parameters if they exist
-            if (orderBy) {
-                url += `&order_by=${orderBy}`;
-            }
-            if (query) {
-                url += `&query=${encodeURIComponent(query)}`;
-            }
-            if (category) {
-                url += `&category=${encodeURIComponent(category)}`;
-            }
-            if (store) {
-                url += `&store=${encodeURIComponent(store)}`;
+            // Update the URL with all current parameters
+            for (const [key, value] of params.entries()) {
+                if (key !== 'page') { // 'page' is already handled
+                    url += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+                }
             }
 
             fetch(url)

@@ -1,70 +1,75 @@
 from flask import render_template, request, redirect, url_for, flash
-from app import app
+from app import app, db
 from app.models import Product, ProductPrice, Store, Location, Category, SubCategory
 from sqlalchemy import asc, desc, func, or_
 from sqlalchemy.orm import joinedload
+from flask import request, render_template
+from sqlalchemy.orm import joinedload
+from sqlalchemy import func, desc, asc
 
 @app.route('/', methods=['GET'])
 def home():
-    query = request.args.get('query', '')  # Default to empty string if no search
-    order_by = request.args.get('order_by', 'asc')  # Default to ascending order
-    page = int(request.args.get('page', 1))  # Default to page 1
+    # Retrieve parameters with defaults
+    query = request.args.get('query', '').strip()
+    order_by = request.args.get('order_by', 'asc').strip()
+    try:
+        page = int(request.args.get('page', 1))
+        if page < 1:
+            page = 1
+    except ValueError:
+        page = 1
     per_page = 20  # Items per page
-    category_filter = request.args.get('category', '')  # Default to empty string for category filter
-    store_filter = request.args.get('store', '')  # Default to empty string for store filter
+    category_filter = request.args.get('category', '').strip()
+    store_filter = request.args.get('store', '').strip()
 
     # Base query
     products_query = Product.query
 
-    # Join necessary tables upfront to avoid duplicate joins
-    products_query = products_query.join(ProductPrice)
-    products_query = products_query.join(Store)
-    products_query = products_query.join(SubCategory)
-    products_query = products_query.join(Category)
+    # Join necessary tables to enable filtering and searching
+    products_query = products_query.join(ProductPrice).join(Store).join(SubCategory).join(Category)
 
-    # Eager load related data to minimize database queries
+    # Eager load related data to optimize performance
     products_query = products_query.options(
         joinedload(Product.sub_category).joinedload(SubCategory.category),
         joinedload(Product.prices).joinedload(ProductPrice.store),
         joinedload(Product.prices).joinedload(ProductPrice.location)
     )
 
-    # Filter by search query if provided
+    # Apply full-text search if query is provided
     if query:
-        # Use full-text search
+        # Create a full-text search vector
         search_vector = func.to_tsvector('english', func.concat_ws(' ', Product.name, SubCategory.name, Category.name))
+        # Create a search query
         search_query = func.plainto_tsquery('english', query)
+        # Filter products matching the search query
         products_query = products_query.filter(search_vector.op('@@')(search_query))
 
-    # Filter by category if selected
+    # Apply category filter if selected
     if category_filter:
-        products_query = products_query.filter(Category.name == category_filter)
+        products_query = products_query.filter(Category.name.ilike(category_filter))
 
-    # Filter by store if selected
+    # Apply store filter if selected
     if store_filter:
-        products_query = products_query.filter(Store.name == store_filter)
+        products_query = products_query.filter(Store.name.ilike(store_filter))
 
-    # Use aggregate function to get the minimum price per product
+    # Aggregate to get the minimum price per product
     products_query = products_query.add_columns(func.min(ProductPrice.price).label('min_price'))
 
-    # Group by product to handle the aggregation
+    # Group by product to handle aggregation
     products_query = products_query.group_by(Product.product_id)
 
-    # Sort products by price
+    # Apply ordering based on price
     if order_by == 'desc':
         products_query = products_query.order_by(desc('min_price'))
     else:
         products_query = products_query.order_by(asc('min_price'))
 
-    # Paginate the products
+    # Paginate the results
     products_pagination = products_query.paginate(page=page, per_page=per_page, error_out=False)
 
-    # Get distinct categories for the dropdown filter
+    # Retrieve distinct categories and stores for the dropdowns
     categories = Category.query.order_by(Category.name.asc()).all()
-
-    # Get distinct stores for the store filter
     stores = Store.query.order_by(Store.name.asc()).all()
-    
     subcategories = SubCategory.query.order_by(SubCategory.name.asc()).all()
 
     return render_template('index.html', 
@@ -76,8 +81,9 @@ def home():
                            selected_category=category_filter, 
                            selected_store=store_filter, 
                            page=page,
-                           total_pages=products_pagination.pages)
-
+                           total_pages=products_pagination.pages,
+                           query=query)  # Pass the query to the template
+    
 from flask import render_template, request, redirect, url_for, flash
 @app.route('/compare', methods=['GET'])
 def compare():
