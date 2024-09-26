@@ -58,12 +58,18 @@
                         </div>
                         <div class="store-logos my-3">
                             {% for price in product.prices %}
-                            <a href="{{product.link }}" target="_blank" class="store-info" title="View {{ product.name }} at {{ price.store.name }}">
-                                <img src="{{ url_for('static', filename='logos/' ~ price.store.name|lower|replace(' ', '_') ~ '.jpeg') }}" alt="{{ price.store.name }} Logo" class="store-logo">
-                            </a>
-                            <div class="attribute">
-                                <i class="fas fa-tag"></i>
-                            <span class="attribute-value">{{ price.store.name}} </span>
+                            <div class="store-price-container">
+                                <a href="{{ product.link }}" target="_blank" class="store-info" title="View {{ product.name }} at {{ price.store.name }}">
+                                    <img src="{{ url_for('static', filename='logos/' ~ price.store.name|lower|replace(' ', '_') ~ '.jpeg') }}" alt="{{ price.store.name }} Logo" class="store-logo">
+                                </a>
+                                {% if price.price == min_price %}
+                                    <p class="price">{{ price.store.name.capitalize() }}</p>
+                                    <p class="price">{{ min_price }} €</p>
+                                {% else %}
+                                    <p class="bad-price">{{ price.store.name.capitalize() }}</p>
+                                    <p class="bad-price">{{ price.price }} €</p>
+                                {% endif %}
+                               
                             </div>
                             {% endfor %}
                         </div>

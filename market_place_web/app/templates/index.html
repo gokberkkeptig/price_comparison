@@ -118,8 +118,24 @@
                             <img src="{{ product.image_url }}" alt="{{ product.name }}">
                             <h2>{{ product.name }}</h2>
                             <p class="category">{{ product.sub_category.category.name }}</p>
-                            <p class="price">Price: {{ min_price }} €</p>
+                            
+                            {% for price in product.prices %}
+                            <div class="store-price-container">
+                                <a href="{{ product.link }}" target="_blank" class="store-info" title="View {{ product.name }} at {{ price.store.name }}">
+                                    <img src="{{ url_for('static', filename='logos/' ~ price.store.name|lower|replace(' ', '_') ~ '.jpeg') }}" alt="{{ price.store.name }} Logo" class="store-logo">
+                                </a>
+                                {% if price.price == min_price %}
+                                    <p class="price">{{ price.store.name.capitalize() }}</p>
+                                    <p class="price">{{ min_price }} €</p>
+                                {% else %}
+                                    <p class="bad-price">{{ price.store.name.capitalize() }}</p>
+                                    <p class="bad-price">{{ price.price }} €</p>
+                                {% endif %}
+                               
+                            </div>
+                            {% endfor %}
                         </a>
+                        
                     </div>
                 </div>
                 {% endfor %}

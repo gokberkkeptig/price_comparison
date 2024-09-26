@@ -8,7 +8,7 @@ import time
 import re
 from datetime import datetime
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
+    create_engine, Column, Integer, String, Float, Date, ForeignKey, UniqueConstraint
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, backref
 import argparse
@@ -88,7 +88,7 @@ class ProductPrice(Base):
     store_id = Column(Integer, ForeignKey('stores.store_id'))
     location_id = Column(Integer, ForeignKey('locations.location_id'))
     price = Column(Float, nullable=False)
-    last_updated = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_updated = Column(Date, nullable=False, default=datetime.utcnow().date)
 
     __table_args__ = (
         UniqueConstraint('product_id', 'store_id', 'location_id', name='_price_uc'),
@@ -818,14 +818,14 @@ def upsert_product(db_session, product_data, store_name, location_name):
             store=store,
             location=location,
             price=product_data['price'],
-            last_updated=datetime.utcnow()
+            last_updated=datetime.utcnow().date()
         )
         db_session.add(product_price)
     else:
         # Update existing price if it has changed
         if product_price.price != product_data['price']:
             product_price.price = product_data['price']
-            product_price.last_updated = datetime.utcnow()
+            product_price.last_updated = datetime.utcnow().date()
     db_session.commit()
 
 async def scrape_store_location(store_name: str, location_name: str):
