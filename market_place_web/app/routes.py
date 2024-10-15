@@ -1,11 +1,19 @@
-from flask import render_template, request, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, session, jsonify
 from app import app, db
-from app.models import Product, ProductPrice, Store, Location, Category, SubCategory
+from app.models import Product, ProductPrice, Store, Location, Category, SubCategory, User
 from sqlalchemy import asc, desc, func, or_
 from sqlalchemy.orm import joinedload
 from flask import request, render_template
-from sqlalchemy.orm import joinedload
-from sqlalchemy import func, desc, asc
+from PIL import Image
+from io import BytesIO
+import base64
+import pytesseract
+
+pytesseract.pytesseract.tesseract_cmd = r'C:\\Users\\ygkep\\AppData\\Local\\Programs\\Tesseract-OCR\\tesseract.exe'
+tessdata_dir_config = "C:\\Users\\ygkep\\AppData\\Local\\Programs\\Tesseract-OCR\\tessdata"
+# Aggiungi l'opzione -l per indicare che la lingua è l'italiano
+config = f'{tessdata_dir_config}\\ita.traineddata'
+print(config)
 
 @app.route('/', methods=['GET'])
 def home():
@@ -124,3 +132,105 @@ def product_detail(product_id):
         joinedload(Product.prices).joinedload(ProductPrice.location)
     ).get_or_404(product_id)
     return render_template('product_detail.html', product=product)
+
+
+
+
+
+# Route per la registrazione
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+       # hashed_password = bycript.generate_password_hash(password).decode('utf-8')
+
+        # Controlla se l'username esiste già
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            flash('Username già in uso. Scegline un altro.', 'error')
+            return render_template('register.html')
+
+       
+
+        new_user = User(username=username, password=password)
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            flash('Registrazione completata! Puoi effettuare il login.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()  # In caso di errore, annulla la sessione
+            flash('Si è verificato un errore durante la registrazione. Riprova.', 'danger')
+            print(f"Errore: {e}")  # Stampa l'errore nel terminale
+
+    return render_template('register.html')  # Restituisci il template per la registrazione
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+    
+        user = User.query.filter_by(username=username).first()
+
+        # Verifica la password
+        if not user or not (user.password, password):
+            flash('Credenziali non valide. Riprova.', 'danger')
+            return redirect(url_for('login'))
+
+        # Autenticazione riuscita, salva l'utente nella sessione
+        session['user_id'] = user.id
+        session['username'] = user.username
+
+        flash('Accesso eseguito con successo', 'success')
+        return redirect(url_for('home'))
+
+    return render_template('login.html')
+
+
+# Route per il logout
+@app.route('/logout')
+def logout():
+    session.pop('user_id', None)
+    session.pop('username', None)
+    flash('Logout effettuato con successo', 'success')
+    return redirect(url_for('home'))
+
+
+
+# Route per reindirizzare alla telecamera
+@app.route('/camera_access')
+def camera_access():
+    # Qui puoi aggiungere la logica per accedere alla telecamera
+    # In questo esempio ti reindirizzo semplicemente ad una nuova pagina
+    return render_template('camera_access.html')
+
+
+@app.route('/upload', methods=['POST'])
+def upload_image():
+    data = request.json
+    if 'image' not in data:
+        return jsonify({'error': 'Nessun dato di immagine trovato'}), 400
+
+    # Decodifica l'immagine base64
+    try:
+        image_data = data['image'].split(",")[1]  # Rimuove il prefisso "data:image/png;base64,"
+        image = Image.open(BytesIO(base64.b64decode(image_data)))
+
+        # Salva temporaneamente l'immagine (opzionale)
+        image.save("scontrino.png")
+
+        # Esegui l'OCR sull'immagine
+        text = pytesseract.image_to_string(image, config=config)  # Assumiamo che l'immagine contenga testo italiano
+
+        return jsonify({'text': text})  # Restituisci il testo riconosciuto
+    except Exception as e:
+        # Restituisci un messaggio di errore dettagliato
+        print(f"Errore durante il riconoscimento del testo: {e}")  # Stampa l'errore nel terminale
+        return jsonify({'error': str(e)}), 500  # Restituisci un errore se qualcosa va storto
+
+
