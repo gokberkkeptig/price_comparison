@@ -5,15 +5,18 @@ from sqlalchemy import asc, desc, func, or_
 from sqlalchemy.orm import joinedload
 from flask import request, render_template
 from PIL import Image
-from io import BytesIO
+import io, re
 import base64
 import pytesseract
+from langchain_ollama import OllamaLLM
+from langchain_core.prompts import ChatPromptTemplate
+import json
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\\Users\\ygkep\\AppData\\Local\\Programs\\Tesseract-OCR\\tesseract.exe'
 tessdata_dir_config = "C:\\Users\\ygkep\\AppData\\Local\\Programs\\Tesseract-OCR\\tessdata"
 # Aggiungi l'opzione -l per indicare che la lingua è l'italiano
 config = f'{tessdata_dir_config}\\ita.traineddata'
-print(config)
+
 
 @app.route('/', methods=['GET'])
 def home():
@@ -134,19 +137,12 @@ def product_detail(product_id):
     return render_template('product_detail.html', product=product)
 
 
-
-
-
-# Route per la registrazione
-
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-       # hashed_password = bycript.generate_password_hash(password).decode('utf-8')
-
-        # Controlla se l'username esiste già
+        
         existing_user = User.query.filter_by(username=username).first()
         if existing_user:
             flash('Username già in uso. Scegline un altro.', 'error')
@@ -209,28 +205,176 @@ def camera_access():
     # In questo esempio ti reindirizzo semplicemente ad una nuova pagina
     return render_template('camera_access.html')
 
-
 @app.route('/upload', methods=['POST'])
 def upload_image():
-    data = request.json
-    if 'image' not in data:
-        return jsonify({'error': 'Nessun dato di immagine trovato'}), 400
+    data = request.get_json()
+    image_data = data['image']
+    
+    # Remove the header of the base64 string
+    image_data = re.sub('^data:image/.+;base64,', '', image_data)
+    
+    # Decode the base64 string
+    image_bytes = base64.b64decode(image_data)
+    image = Image.open(io.BytesIO(image_bytes))
+    
+    # Perform OCR on the image
+    extracted_text = pytesseract.image_to_string(image, lang='ita', config=config)
+    print(extracted_text)
+    prompt = (
+        "You are tasked with extracting specific information from the following text of a receipt. "
+        "You need to extract:\n"
+        "- The name of the supermarket ('store_name')\n"
+        "- The date of the receipt ('date')\n"
+        "- The list of items ('items') with their names ('name') and prices ('price')\n\n"
+        "Here is the text of the receipt:\n"
+        f"{extracted_text}\n\n"
+        "Please follow these instructions carefully:\n"
+        "1. Do not include any extra text, comments, or explanations in your response.\n"
+        "2. Completely ignore lines that contain the words 'sconto' or 'C.Insieme'.\n"
+        "3. If you cannot find some of the required information, leave that field empty in the JSON result.\n"
+        "4. Provide the result in JSON format, with the keys 'store_name', 'date', and 'items'.\n"
+        "5. The 'items' key should be a list of objects, each with the keys 'name' and 'price'.\n"
+        "6. The 'price' should be a decimal number, using a dot as the decimal separator (e.g., 4.99).\n"
+        "7. When the store name is unclear or missing,make sure that you use famous supermarkets in Italy as the 'store_name' (e.g., CONAD, PENNY).\n"
+        "8. Make sure that use dateformat as 'dd/mm/yyyy'.\n"
+        "9. Example output:\n"
+        "{\n"
+        '  "store_name": "CONAD",\n'
+        '  "date": "09/09/2024",\n'
+        '  "items": [\n'
+        '    {"name": "BIRBE RINGS AMADORI", "price": 4.99},\n'
+        '    {"name": "PANE INTEGRALE", "price": 2.50}\n'
+        '  ]\n'
+        '}\n'
+    )
 
-    # Decodifica l'immagine base64
+    model = OllamaLLM(model='llama3.2')  
+    print(prompt)
+
+    response = model.invoke(input=prompt)
+    print(response)
+    import datetime
+    
+    
+    # Parse the JSON response
     try:
-        image_data = data['image'].split(",")[1]  # Rimuove il prefisso "data:image/png;base64,"
-        image = Image.open(BytesIO(base64.b64decode(image_data)))
+        receipt_data = json.loads(response)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON: {e}")
+        return jsonify({'error': 'Invalid response format'}), 400
+    
+    # Now, process the receipt_data and insert/update the database accordingly
+    print(receipt_data)
+    # Handle the store
+    store_name = receipt_data.get('store_name', '').strip()
+    if not store_name:
+        store_name = 'Unknown Store'  # Default value or handle as per your requirement
+    store = Store.query.filter_by(name=store_name).first()
+    if not store:
+        store = Store(name=store_name)
+        db.session.add(store)
+        db.session.flush()  # To get the store_id
+    
+    # Handle the receipt date
+    receipt_date_str = receipt_data.get('date', '').strip()
+    try:
+        receipt_date = datetime.datetime.strptime(receipt_date_str, '%d/%m/%Y') 
 
-        # Salva temporaneamente l'immagine (opzionale)
-        image.save("scontrino.png")
+    except ValueError:
+        receipt_date = datetime.utcnow()  # Default to current date or handle as per your requirement
+    
+    # Ensure there is an 'Uncategorized' category and subcategory
+    category = Category.query.filter_by(name='Uncategorized').first()
+    if not category:
+        category = Category(name='Uncategorized')
+        db.session.add(category)
+        db.session.flush()  # To get category_id
 
-        # Esegui l'OCR sull'immagine
-        text = pytesseract.image_to_string(image, config=config)  # Assumiamo che l'immagine contenga testo italiano
+    sub_category = SubCategory.query.filter_by(name='Uncategorized', category_id=category.category_id).first()
+    if not sub_category:
+        sub_category = SubCategory(name='Uncategorized', category_id=category.category_id)
+        db.session.add(sub_category)
+        db.session.flush()  # To get sub_category_id
 
-        return jsonify({'text': text})  # Restituisci il testo riconosciuto
+    # Ensure there is a default location
+    location = Location.query.filter_by(city='Napoli', country='Italy').first()
+    if not location:
+        location = Location(city='Napoli', country='Italy')
+        db.session.add(location)
+        db.session.flush()  # To get location_id
+
+    # Handle the items
+    items = receipt_data.get('items', [])
+    for item in items:
+        product_name = item.get('name', '').strip()
+        price_str = item.get('price')
+        
+        # Convert price to float
+        try:
+            price = float(price_str)
+        except Exception as e:
+            print(f"Invalid price '{price_str}' for item '{product_name}': {e}")
+            continue  # Skip this item or handle as per your requirement
+        
+        # Check if the product exists
+        product = Product.query.filter_by(name=product_name).first()
+        print(product)
+        if product:
+            # Product exists
+            # Check if there is a ProductPrice for this product, store, and location
+            product_price = ProductPrice.query.filter_by(
+                product_id=product.product_id,
+                
+                store_id=store.store_id,
+                location_id=location.location_id
+            ).first()
+            print(product.product_id)
+            if product_price:
+                # Compare last_updated dates
+                if product_price.last_updated < receipt_date:
+                    # Update price and last_updated
+                    if product_price.price != price:
+                        product_price.price = price
+                    product_price.last_updated = receipt_date
+                    db.session.add(product_price)
+                else:
+                    # The existing price is more recent, do nothing
+                    pass
+            else:
+                # No existing ProductPrice, create a new one
+                product_price = ProductPrice(
+                    product_id=product.product_id,
+                    store_id=store.store_id,
+                    location_id=location.location_id,
+                    price=price,
+                    last_updated=receipt_date
+                )
+                db.session.add(product_price)
+        else:
+            # Product does not exist, create a new one
+            product = Product(
+                name=product_name,
+                sub_category_id=sub_category.sub_category_id
+                # link and image_url can be None
+            )
+            db.session.add(product)
+            db.session.flush()  # To get product_id
+            
+            # Create a new ProductPrice entry
+            product_price = ProductPrice(
+                product_id=product.product_id,
+                store_id=store.store_id,
+                location_id=location.location_id,
+                price=price,
+                last_updated=receipt_date
+            )
+            db.session.add(product_price)
+    
+    # Commit the session
+    try:
+        db.session.commit()
+        return jsonify({'message': 'Data inserted/updated successfully'}), 200
     except Exception as e:
-        # Restituisci un messaggio di errore dettagliato
-        print(f"Errore durante il riconoscimento del testo: {e}")  # Stampa l'errore nel terminale
-        return jsonify({'error': str(e)}), 500  # Restituisci un errore se qualcosa va storto
-
-
+        db.session.rollback()
+        print(f"Error inserting/updating the database: {e}")
+        return jsonify({'error': 'Database operation failed'}), 500
