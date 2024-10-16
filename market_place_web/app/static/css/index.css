@@ -283,7 +283,7 @@ header h1::after {
 .add-to-cart-button:hover {
     background-color: #218838;
 }
-.cart-item .remove-from-cart-button {
+.remove-from-cart-button {
     background-color: #dc3545; /* Red color */
     color: white;
     padding: 5px 10px;
@@ -294,6 +294,6 @@ header h1::after {
     font-size: 12px;
 }
 
-.cart-item .remove-from-cart-button:hover {
+.remove-from-cart-button:hover {
     background-color: #c82333;
 }

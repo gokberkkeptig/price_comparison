@@ -1,10 +1,10 @@
-{%extends "base.html" %}
+{% extends "base.html" %}
 
 {% block head %}
     {{ super() }}
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
 {% endblock %}
-{%block content %}
+{% block content %}
     <!-- Combined Search and Filters -->
     <div class="container my-4">
         <form action="{{ url_for('home') }}" method="GET" id="filterForm" class="form-inline justify-content-center">
@@ -95,7 +95,7 @@
                         </button>
 
                         <a href="{{ url_for('product_detail', product_id=product.product_id) }}" style="text-decoration: none; color: inherit;">
-                            <img src="{{ product.image_url }}" alt="{{ product.name }}">
+                                <img src="{{ product.image_url }}" alt="{{ product.name }}">
                             <h2>{{ product.name }}</h2>
                             <p class="category">{{ product.sub_category.category.name }}</p>
                             
@@ -115,15 +115,22 @@
                             </div>
                             {% endfor %}
                         </a>
-                                        <!-- Add to Cart Button -->
-        <button type="button" class="add-to-cart-button" data-product-id="{{ product.product_id }}">
-            Add to Cart
-        </button>   
+                    </a>
+                    
+                    <!-- Cart Actions -->
+                    <div class="cart-actions">
+                        <button type="button" class="add-to-cart-button" data-product-id="{{ product.product_id }}">
+                            Add to Cart
+                        </button>
+                        <span class="product-quantity" data-product-id="{{ product.product_id }}">Quantity: 0</span>
+                        <button type="button" class="remove-from-cart-button" data-product-id="{{ product.product_id }}">
+                            Remove from Cart
+                        </button>
                     </div>
                 </div>
-                
-                {% endfor %}
             </div>
+            {% endfor %}
+        </div>
 
      
         <!-- Fixed Action Buttons -->
@@ -153,21 +160,21 @@
         function loadMoreProducts() {
             isLoading = true;
             page += 1;
-
+        
             let url = `/?page=${page}`;
-
+        
             // Get current query parameters from the form
             const form = document.getElementById('filterForm');
             const formData = new FormData(form);
             const params = new URLSearchParams(formData);
-
+        
             // Update the URL with all current parameters
             for (const [key, value] of params.entries()) {
                 if (key !== 'page') { // 'page' is already handled
                     url += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
                 }
             }
-
+        
             fetch(url)
                 .then(response => response.text())
                 .then(data => {
@@ -175,10 +182,13 @@
                     const htmlDocument = parser.parseFromString(data, 'text/html');
                     const newProducts = htmlDocument.querySelector('#product-container').innerHTML;
                     document.querySelector('#product-container').insertAdjacentHTML('beforeend', newProducts);
-
+        
                     // Re-initialize the select buttons event listeners
                     initializeSelectButtons();
-
+        
+                    // Re-initialize the cart buttons event listeners
+                    initializeCartButtons();
+        
                     isLoading = false;
                 })
                 .catch(error => {
@@ -186,6 +196,7 @@
                     isLoading = false;
                 });
         }
+        
         function initializeSelectButtons() {
             const selectButtons = document.querySelectorAll('.select-button');
             const maxCompare = 4;
@@ -295,17 +306,18 @@
             });
         }
         
-        // Initialize select buttons on page load
-        initializeSelectButtons();
+
+        
         function initializeCartButtons() {
             const addToCartButtons = document.querySelectorAll('.add-to-cart-button');
+            const removeFromCartButtons = document.querySelectorAll('.remove-from-cart-button');
             const cartCountElement = document.getElementById('cartItemCount');
         
             // Initialize cart from Local Storage
             let cart = JSON.parse(localStorage.getItem('cart')) || {};
         
-            // Update cart count on page load
-            updateCartCount();
+            // Update cart count and quantities on page load
+            updateCartDisplay();
         
             addToCartButtons.forEach(function(button) {
                 const productId = button.getAttribute('data-product-id');
@@ -323,24 +335,55 @@
                     // Save cart to Local Storage
                     localStorage.setItem('cart', JSON.stringify(cart));
         
-                    // Update cart count
-                    updateCartCount();
+                    // Update cart display
+                    updateCartDisplay();
         
                     // Provide feedback to the user
                     button.textContent = 'Added to Cart';
                     setTimeout(() => {
                         button.textContent = 'Add to Cart';
-                    }, 2000);
+                    }, 1000);
                 });
             });
         
-            function updateCartCount() {
+            removeFromCartButtons.forEach(function(button) {
+                const productId = button.getAttribute('data-product-id');
+        
+                button.addEventListener('click', function(event) {
+                    event.stopPropagation();
+        
+                    // Remove product from cart
+                    if (cart[productId]) {
+                        cart[productId] -= 1; // Decrease quantity
+        
+                        if (cart[productId] <= 0) {
+                            delete cart[productId]; // Remove item if quantity is zero
+                        }
+        
+                        // Save cart to Local Storage
+                        localStorage.setItem('cart', JSON.stringify(cart));
+        
+                        // Update cart display
+                        updateCartDisplay();
+                    }
+                });
+            });
+        
+            function updateCartDisplay() {
+                // Update cart count
                 const itemCount = Object.values(cart).reduce((a, b) => a + b, 0);
                 cartCountElement.textContent = itemCount;
+        
+                // Update quantity display for each product
+                const quantityDisplays = document.querySelectorAll('.product-quantity');
+                quantityDisplays.forEach(function(span) {
+                    const productId = span.getAttribute('data-product-id');
+                    const quantity = cart[productId] || 0;
+                    span.textContent = `Quantity: ${quantity}`;
+                });
             }
         }
-        
-        // Initialize cart buttons on page load
+        initializeSelectButtons();
         initializeCartButtons();
         
         
