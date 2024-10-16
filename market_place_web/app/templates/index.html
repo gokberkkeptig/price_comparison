@@ -1,7 +1,8 @@
 {%extends "base.html" %}
 
 {% block head %}
-{{ super() }}
+    {{ super() }}
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
 {% endblock %}
 {%block content %}
     <!-- Combined Search and Filters -->
@@ -114,13 +115,17 @@
                             </div>
                             {% endfor %}
                         </a>
-                        
+                                        <!-- Add to Cart Button -->
+        <button type="button" class="add-to-cart-button" data-product-id="{{ product.product_id }}">
+            Add to Cart
+        </button>   
                     </div>
                 </div>
+                
                 {% endfor %}
             </div>
 
-
+     
         <!-- Fixed Action Buttons -->
         <div class="fixed-action-buttons">
             <button type="submit" form="compareForm" class="compare-button" id="compareButton">Compare Products</button>
@@ -292,6 +297,52 @@
         
         // Initialize select buttons on page load
         initializeSelectButtons();
+        function initializeCartButtons() {
+            const addToCartButtons = document.querySelectorAll('.add-to-cart-button');
+            const cartCountElement = document.getElementById('cartItemCount');
+        
+            // Initialize cart from Local Storage
+            let cart = JSON.parse(localStorage.getItem('cart')) || {};
+        
+            // Update cart count on page load
+            updateCartCount();
+        
+            addToCartButtons.forEach(function(button) {
+                const productId = button.getAttribute('data-product-id');
+        
+                button.addEventListener('click', function(event) {
+                    event.stopPropagation();
+        
+                    // Add product to cart
+                    if (cart[productId]) {
+                        cart[productId] += 1; // Increase quantity
+                    } else {
+                        cart[productId] = 1; // Add new item
+                    }
+        
+                    // Save cart to Local Storage
+                    localStorage.setItem('cart', JSON.stringify(cart));
+        
+                    // Update cart count
+                    updateCartCount();
+        
+                    // Provide feedback to the user
+                    button.textContent = 'Added to Cart';
+                    setTimeout(() => {
+                        button.textContent = 'Add to Cart';
+                    }, 2000);
+                });
+            });
+        
+            function updateCartCount() {
+                const itemCount = Object.values(cart).reduce((a, b) => a + b, 0);
+                cartCountElement.textContent = itemCount;
+            }
+        }
+        
+        // Initialize cart buttons on page load
+        initializeCartButtons();
+        
         
     </script>
 

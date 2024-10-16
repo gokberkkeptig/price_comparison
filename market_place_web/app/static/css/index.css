@@ -267,3 +267,33 @@ header h1::after {
     background-color: #d32f2f;
     transform: translateY(-2px);
 }
+.add-to-cart-button {
+    background-color: #28a745; /* Green color */
+    color: white;
+    padding: 8px 16px;
+    margin-top: 10px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 14px;
+    width: 100%;
+    transition: background-color 0.3s;
+}
+
+.add-to-cart-button:hover {
+    background-color: #218838;
+}
+.cart-item .remove-from-cart-button {
+    background-color: #dc3545; /* Red color */
+    color: white;
+    padding: 5px 10px;
+    margin-top: 5px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 12px;
+}
+
+.cart-item .remove-from-cart-button:hover {
+    background-color: #c82333;
+}

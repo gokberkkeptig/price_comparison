@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 {% extends 'base.html' %}
-
+{% block head %}
+    {{ super() }}
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
 {% block title %}Accedi{% endblock %}
 {% block content %}
 

@@ -395,3 +395,38 @@ def upload_image():
         db.session.rollback()
         print(f"Error inserting/updating the database: {e}")
         return jsonify({'error': 'Database operation failed'}), 500
+    
+    
+    
+@app.route('/checkout')
+def checkout():
+    return render_template('checkout.html')
+@app.route('/get_cart_products', methods=['POST'])
+def get_cart_products():
+    data = request.get_json()
+    cart = data.get('cart', {})
+    product_ids = cart.keys()
+
+    # Fetch products from the database
+    products = Product.query.filter(Product.product_id.in_(product_ids)).all()
+
+    # Serialize products and their prices
+    products_data = []
+    for product in products:
+        product_info = {
+            'product_id': product.product_id,
+            'name': product.name,
+            'prices': []
+        }
+        for price in product.prices:
+            product_info['prices'].append({
+                'store': price.store.name,
+                'price': price.price
+            })
+        products_data.append(product_info)
+
+    # Get a list of all stores
+    stores = Store.query.all()
+    store_names = [store.name for store in stores]
+
+    return jsonify({'products': products_data, 'stores': store_names})
