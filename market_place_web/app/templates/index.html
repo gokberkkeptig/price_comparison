@@ -120,8 +120,15 @@
                 {% endfor %}
             </div>
 
-            <!-- Compare Button -->
-            <button type="submit" class="compare-button" id="compareButton">Compare Products</button>
+
+        <!-- Fixed Action Buttons -->
+        <div class="fixed-action-buttons">
+            <button type="submit" form="compareForm" class="compare-button" id="compareButton">Compare Products</button>
+
+            <button type="button" class="reset-button" id="resetButton">Reset Compare</button>
+        </div>
+
+
         </form>
     </div>
 
@@ -174,18 +181,36 @@
                     isLoading = false;
                 });
         }
-
-        // Function to initialize select buttons event listeners
         function initializeSelectButtons() {
             const selectButtons = document.querySelectorAll('.select-button');
             const maxCompare = 4;
             const warningMessage = document.getElementById('warningMessage');
+            const fixedActionButtons = document.querySelector('.fixed-action-buttons');
             const compareButton = document.getElementById('compareButton');
-            const selectedProducts = new Set();
-
+            const resetButton = document.getElementById('resetButton');
+        
+            // Initialize selectedProducts from Local Storage
+            let selectedProducts = new Set(JSON.parse(localStorage.getItem('selectedProducts') || '[]'));
+        
+            // Update UI to reflect selected products
             selectButtons.forEach(function(button) {
                 const productId = button.getAttribute('data-product-id');
-
+                if (selectedProducts.has(productId)) {
+                    // Update button to show selected state
+                    button.innerHTML = `<img src="{{ url_for('static', filename='icons/minus.svg') }}" alt="Deselect">`;
+                    button.classList.add('selected');
+                }
+            });
+        
+            // Show or hide the fixed action buttons based on selectedProducts size
+            toggleActionButtons(selectedProducts.size);
+        
+            // Update hidden inputs initially
+            updateSelectedProducts();
+        
+            selectButtons.forEach(function(button) {
+                const productId = button.getAttribute('data-product-id');
+        
                 button.addEventListener('click', function(event) {
                     event.stopPropagation();
                     if (selectedProducts.has(productId)) {
@@ -206,24 +231,24 @@
                         button.innerHTML = `<img src="{{ url_for('static', filename='icons/minus.svg') }}" alt="Deselect">`;
                         button.classList.add('selected');
                     }
-
+        
                     // Update hidden input fields
                     updateSelectedProducts();
-
-                    // Show or hide the compare button
-                    if (selectedProducts.size > 0) {
-                        compareButton.classList.add('show');
-                    } else {
-                        compareButton.classList.remove('show');
-                    }
+        
+                    // Show or hide the fixed action buttons
+                    toggleActionButtons(selectedProducts.size);
+        
+                    // Save selectedProducts to Local Storage
+                    localStorage.setItem('selectedProducts', JSON.stringify(Array.from(selectedProducts)));
                 });
             });
-
+        
+            // Function to update hidden input fields
             function updateSelectedProducts() {
                 // Remove existing hidden inputs
                 const existingInputs = document.querySelectorAll('.selected-product-input');
                 existingInputs.forEach(input => input.remove());
-
+        
                 // Add hidden inputs for selected products
                 selectedProducts.forEach(productId => {
                     const input = document.createElement('input');
@@ -234,10 +259,40 @@
                     document.getElementById('compareForm').appendChild(input);
                 });
             }
+        
+            // Function to show or hide the fixed action buttons
+            function toggleActionButtons(selectionSize) {
+                if (selectionSize > 0) {
+                    fixedActionButtons.classList.add('show');
+                } else {
+                    fixedActionButtons.classList.remove('show');
+                }
+            }
+        
+            // Add event listener to the Reset Compare button
+            resetButton.addEventListener('click', function() {
+                // Clear the selectedProducts set and Local Storage
+                selectedProducts.clear();
+                localStorage.removeItem('selectedProducts');
+        
+                // Update the UI
+                selectButtons.forEach(function(button) {
+                    button.innerHTML = `<img src="{{ url_for('static', filename='icons/plus.svg') }}" alt="Select">`;
+                    button.classList.remove('selected');
+                });
+        
+                // Hide the fixed action buttons
+                toggleActionButtons(selectedProducts.size);
+        
+                // Remove hidden inputs
+                const existingInputs = document.querySelectorAll('.selected-product-input');
+                existingInputs.forEach(input => input.remove());
+            });
         }
-
+        
         // Initialize select buttons on page load
         initializeSelectButtons();
+        
     </script>
 
     <!-- Include Bootstrap JS and dependencies -->

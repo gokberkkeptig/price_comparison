@@ -159,32 +159,7 @@ header h1::after {
     font-weight: bold;
 }
 
-/* Compare Button */
-.compare-button {
-    display: none;
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    padding: 15px 25px;
-    font-size: 16px;
-    cursor: pointer;
-    background-color: #007BFF;
-    color: #fff;
-    border: none;
-    border-radius: 50px;
-    z-index: 1000;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    transition: background-color 0.3s, transform 0.3s;
-}
 
-.compare-button:hover {
-    background-color: #0056b3;
-    transform: translateY(-2px);
-}
-
-.compare-button.show {
-    display: block;
-}
 
 /* Store Logos */
 .store-logos {
@@ -247,4 +222,48 @@ header h1::after {
         bottom: 20px;
         right: 20px;
     }
+}
+/* Remove any previous .compare-button and .reset-button styles */
+
+/* Fixed Action Buttons Container */
+.fixed-action-buttons {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    display: none; /* Initially hidden */
+    flex-direction: column;
+    align-items: center;
+    z-index: 1000;
+}
+
+.fixed-action-buttons.show {
+    display: flex;
+}
+
+/* Styles for Buttons within Fixed Container */
+.fixed-action-buttons button {
+    background-color: #007bff;
+    color: white;
+    padding: 12px 24px;
+    margin: 5px 0;
+    border: none;
+    cursor: pointer;
+    border-radius: 50px;
+    font-size: 16px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    transition: background-color 0.3s, transform 0.3s;
+}
+
+.fixed-action-buttons .reset-button {
+    background-color: #f44336;
+}
+
+.fixed-action-buttons .compare-button:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+}
+
+.fixed-action-buttons .reset-button:hover {
+    background-color: #d32f2f;
+    transform: translateY(-2px);
 }
