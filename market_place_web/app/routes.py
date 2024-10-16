@@ -401,6 +401,7 @@ def upload_image():
 @app.route('/checkout')
 def checkout():
     return render_template('checkout.html')
+
 @app.route('/get_cart_products', methods=['POST'])
 def get_cart_products():
     data = request.get_json()
@@ -416,7 +417,8 @@ def get_cart_products():
         product_info = {
             'product_id': product.product_id,
             'name': product.name,
-            'prices': []
+            'prices': [],
+            'image_url': product.image_url
         }
         for price in product.prices:
             product_info['prices'].append({

@@ -730,7 +730,7 @@ async def scrape_product_details(session: ClientSession, link: str) -> list:
                     'link': link,
                     'sub_category': sub_category_name,
                     'category': category_name,
-                    'name': product_name,
+                    'name': product_name.title(),
                     'price': product_price,
                     'image_url': image_url
                 })
