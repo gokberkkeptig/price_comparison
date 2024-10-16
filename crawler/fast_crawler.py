@@ -823,9 +823,8 @@ def upsert_product(db_session, product_data, store_name, location_name):
         db_session.add(product_price)
     else:
         # Update existing price if it has changed
-        if product_price.price != product_data['price']:
-            product_price.price = product_data['price']
-            product_price.last_updated = datetime.utcnow().date()
+        product_price.price = product_data['price']
+        product_price.last_updated = datetime.utcnow().date()
     db_session.commit()
 
 async def scrape_store_location(store_name: str, location_name: str):

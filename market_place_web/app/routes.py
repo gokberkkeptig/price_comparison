@@ -9,7 +9,6 @@ import io, re
 import base64
 import pytesseract
 from langchain_ollama import OllamaLLM
-from langchain_core.prompts import ChatPromptTemplate
 import json
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\\Users\\ygkep\\AppData\\Local\\Programs\\Tesseract-OCR\\tesseract.exe'
@@ -267,6 +266,7 @@ def upload_image():
     print(receipt_data)
     # Handle the store
     store_name = receipt_data.get('store_name', '').strip()
+    store_name = store_name.lower()  # Convert to lowercase for consistency
     if not store_name:
         store_name = 'Unknown Store'  # Default value or handle as per your requirement
     store = Store.query.filter_by(name=store_name).first()
@@ -307,6 +307,7 @@ def upload_image():
     items = receipt_data.get('items', [])
     for item in items:
         product_name = item.get('name', '').strip()
+        product_name = product_name.title()  # Convert to title for consistency
         price_str = item.get('price')
         
         # Convert price to float
@@ -354,8 +355,9 @@ def upload_image():
             # Product does not exist, create a new one
             product = Product(
                 name=product_name,
-                sub_category_id=sub_category.sub_category_id
-                # link and image_url can be None
+                sub_category_id=sub_category.sub_category_id,
+                image_url='https://glovoapp.com/images/svg/product/general.svg'
+                # link can be None
             )
             db.session.add(product)
             db.session.flush()  # To get product_id

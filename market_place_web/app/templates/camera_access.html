@@ -1,13 +1,9 @@
-<!DOCTYPE html>
-<html lang="it">
+{%extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Accesso alla Telecamera e Caricamento Immagine</title>
-</head>
-
-<body>
+{% block head %}
+{{ super() }}
+{% endblock %}
+{%block content %}
     <h1>Accedi alla Telecamera o Carica un'Immagine</h1>
 
     <!-- Sezione per l'accesso alla telecamera -->
@@ -83,6 +79,4 @@
                 });
         }
     </script>
-</body>
-
-</html>
+{% endblock %}

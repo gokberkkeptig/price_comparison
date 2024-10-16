@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Product Price Comparison{% endblock %}</title>
+    
+    <!-- Google Fonts for Modern Sans-Serif Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Bootstrap CSS for Grid System -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-some-integrity-hash" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+
+    <style>
+        /* Custom Styles for Navbar */
+        .navbar {
+            background-color: #343a40 !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1030;
+        }
+        .navbar-brand {
+            font-weight: 600;
+            color: #ffffff !important;
+            font-size: 1.5rem;
+        }
+        .nav-link {
+            color: #f8f9fa !important;
+            margin-right: 15px;
+            transition: color 0.3s ease;
+        }
+        .nav-link:hover {
+            color: #ffc107 !important;
+        }
+        .navbar-toggler {
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        .navbar-toggler-icon {
+            color: #ffffff;
+        }
+        /* Styling for active links */
+        .nav-item.active .nav-link {
+            color: #ffc107 !important;
+        }
+        /* Add padding to the top of the body to account for the fixed navbar */
+        body {
+            padding-top: 70px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <a class="navbar-brand" href="{{ url_for('home') }}">
+            <i class="fas fa-tags"></i> Prezzi Spesa
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"><i class="fas fa-bars"></i></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('home') }}">
+                        <i class="fas fa-home"></i> Home
+                    </a>
+                </li>
+                {% if not session.get('user_id') %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('register') }}">
+                            <i class="fas fa-user-plus"></i> Registrati
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('login') }}">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                    </li>
+                {% elif session.get('user_id') %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('camera_access') }}">
+                            <i class="fas fa-user"></i> Nuovo Prodotto
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('home') }}">
+                            <i class="fas fa-user"></i> Profilo
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">
+                            <i class="fas fa-sign-out-alt"></i> Disconnettersi
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        {% block content %}
+        {% endblock %}
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center mt-4">
+        <p>&copy; 2023 Prezzi Spesa. Tutti i diritti riservati.</p>
+    </footer>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
