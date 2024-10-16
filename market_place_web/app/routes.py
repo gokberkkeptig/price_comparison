@@ -254,6 +254,7 @@ def upload_image():
     print(response)
     import datetime
     
+    feedback_messages = []
     
     # Parse the JSON response
     try:
@@ -312,11 +313,19 @@ def upload_image():
         
         # Convert price to float
         try:
-            price = float(price_str)
+            if price_str is None:
+                raise ValueError("Price is missing")
+            elif isinstance(price_str, (float, int)):
+                price = float(price_str)
+            elif isinstance(price_str, str):
+                price_str_converted = price_str.replace(',', '.')
+                price = float(price_str_converted)
+            else:
+                raise ValueError(f"Unexpected type for price_str: {type(price_str)}")
         except Exception as e:
-            print(f"Invalid price '{price_str}' for item '{product_name}': {e}")
-            continue  # Skip this item or handle as per your requirement
-        
+            feedback_messages.append(f"Invalid price '{price_str}' for item '{product_name}': {e}")
+            continue
+
         # Check if the product exists
         product = Product.query.filter_by(name=product_name).first()
         print(product)
@@ -336,10 +345,12 @@ def upload_image():
                     # Update price and last_updated
                     if product_price.price != price:
                         product_price.price = price
+                        feedback_messages.append(f"Price updated to '{price}' for product '{product_name}'")
                     product_price.last_updated = receipt_date
                     db.session.add(product_price)
                 else:
                     # The existing price is more recent, do nothing
+                    feedback_messages.append(f"Price '{price}' for product '{product_name}' is older than the existing price")
                     pass
             else:
                 # No existing ProductPrice, create a new one
@@ -351,6 +362,7 @@ def upload_image():
                     last_updated=receipt_date
                 )
                 db.session.add(product_price)
+                feedback_messages.append(f"New price '{price}' added for product '{product_name}'")
         else:
             # Product does not exist, create a new one
             product = Product(
@@ -371,11 +383,14 @@ def upload_image():
                 last_updated=receipt_date
             )
             db.session.add(product_price)
+            feedback_messages.append(f"New product '{product_name}' added to the database")
     
-    # Commit the session
     try:
         db.session.commit()
-        return jsonify({'message': 'Data inserted/updated successfully'}), 200
+        return jsonify({
+            'message': 'Data inserted/updated successfully',
+            'feedback': feedback_messages
+        }), 200
     except Exception as e:
         db.session.rollback()
         print(f"Error inserting/updating the database: {e}")

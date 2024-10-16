@@ -78,5 +78,34 @@
                     console.error('Errore:', error);
                 });
         }
-    </script>
+   // Function to send the image to the server
+   function inviaImmagineAlServer(imageData) {
+    fetch('/upload', {
+        method: 'POST',
+        body: JSON.stringify({ image: imageData }),
+        headers: { 'Content-Type': 'application/json' }
+    })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Feedback:', data.feedback);
+            const risultato = document.getElementById('risultato');
+            risultato.innerHTML = ''; // Clear previous content
+            if (data.feedback && data.feedback.length > 0) {
+                data.feedback.forEach(msg => {
+                    const p = document.createElement('p');
+                    p.innerText = msg;
+                    risultato.appendChild(p);
+                });
+            } else if (data.error) {
+                risultato.innerText = `Error: ${data.error}`;
+            } else {
+                risultato.innerText = 'No feedback received.';
+            }
+        })
+        .catch(error => {
+            console.error('Errore:', error);
+            document.getElementById('risultato').innerText = 'An error occurred while processing the image.';
+        });
+}
+</script>
 {% endblock %}
