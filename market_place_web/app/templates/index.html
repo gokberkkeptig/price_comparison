@@ -1,395 +1,373 @@
 {% extends "base.html" %}
-
 {% block head %}
-    {{ super() }}
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
+{{ super() }}
+<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
 {% endblock %}
 {% block content %}
-    <!-- Combined Search and Filters -->
-    <div class="container my-4">
-        <form action="{{ url_for('home') }}" method="GET" id="filterForm" class="form-inline justify-content-center">
-            <!-- Search Query Input -->
-            <input 
-                type="text" 
-                name="query" 
-                placeholder="Search for a product..." 
-                value="{{ request.args.get('query', '') }}" 
-                class="form-control mr-2" 
-                style="width: 300px;"
-            >
-
-            <!-- Sort By -->
-            <label for="sort" class="mr-2">Sort by:</label>
-            <select name="order_by" id="sort" class="form-control mr-4">
-                <option value="asc" {% if order_by == 'asc' %}selected{% endif %}>Price: Low to High</option>
-                <option value="desc" {% if order_by == 'desc' %}selected{% endif %}>Price: High to Low</option>
-            </select>
-
-            <!-- Filter by Category -->
-            <label for="category" class="mr-2">Category:</label>
-            <select name="category" id="category" class="form-control mr-4">
-                <option value="" {% if not selected_category %}selected{% endif %}>All Categories</option>
-                {% for category in categories %}
-                    <option value="{{ category.name }}" {% if category.name == selected_category %}selected{% endif %}>
-                        {{ category.name }}
-                    </option>
-                {% endfor %}
-            </select>
-
-            <!-- Filter by Store -->
-            <label for="store" class="mr-2">Store:</label>
-            <select name="store" id="store" class="form-control mr-4">
-                <option value="" {% if not selected_store %}selected{% endif %}>All Stores</option>
-                {% for store in stores %}
-                    <option value="{{ store.name }}" {% if store.name == selected_store %}selected{% endif %}>
-                        {{ store.name }}
-                    </option>
-                {% endfor %}
-            </select>
-
-            <!-- Reset to First Page -->
-            <input type="hidden" name="page" value="1">
-        </form>
-
-        <script>
-
-            // Auto-submit form on sorting, category, store, or search query change
-            document.getElementById('sort').addEventListener('change', function() {
-                document.getElementById('filterForm').submit();
-            });
-            document.getElementById('category').addEventListener('change', function() {
-                document.getElementById('filterForm').submit();
-            });
-            document.getElementById('store').addEventListener('change', function() {
-                document.getElementById('filterForm').submit();
-            });
-            document.querySelector('input[name="query"]').addEventListener('input', function() {
-                // Debounce the search to prevent excessive submissions
-                clearTimeout(this.searchTimeout);
-                this.searchTimeout = setTimeout(() => {
-                    document.getElementById('filterForm').submit();
-                }, 500); // Adjust delay as needed
-
-            });
-        </script>
-
-    </div>
-
-    <!-- Warning Message -->
-    <div class="warning-message" id="warningMessage" style="display: none;">
-        You can compare up to 4 products at a time.
-    </div>
-
-    <!-- Product Container -->
-    <div class="product-container">
-        <form id="compareForm" method="GET" action="{{ url_for('compare') }}">
-            <div class="row" id="product-container">
-                {% for product_tuple in products %}
-                {% set product = product_tuple[0] %}
-                {% set min_price = product_tuple[1] %}
-                <div class="col-md-3 col-sm-6">
-                    <div class="product-card">
-                        <!-- Selection Button -->
-                        <button type="button" class="select-button" data-product-id="{{ product.product_id }}">
-                            <img src="{{ url_for('static', filename='icons/plus.svg') }}" alt="Select">
-                        </button>
-
-                        <a href="{{ url_for('product_detail', product_id=product.product_id) }}" style="text-decoration: none; color: inherit;">
-                                <img src="{{ product.image_url }}" alt="{{ product.name }}">
-                            <h2>{{ product.name }}</h2>
-                            <p class="category">{{ product.sub_category.category.name }}</p>
-                            
-                            {% for price in product.prices %}
-                            <div class="store-price-container">
-                                <a href="{{ product.link }}" target="_blank" class="store-info" title="View {{ product.name }} at {{ price.store.name }}">
-                                    <img src="{{ url_for('static', filename='logos/' ~ price.store.name|lower|replace(' ', '_') ~ '.jpeg') }}" alt="{{ price.store.name }} Logo" class="store-logo">
-                                </a>
-                                {% if price.price == min_price %}
-                                    <p class="price">{{ price.store.name.capitalize() }}</p>
-                                    <p class="price">{{ min_price }} €</p>
-                                {% else %}
-                                    <p class="bad-price">{{ price.store.name.capitalize() }}</p>
-                                    <p class="bad-price">{{ price.price }} €</p>
-                                {% endif %}
-                               
-                            </div>
-                            {% endfor %}
-                        </a>
-                    </a>
-                    
-                    <!-- Cart Actions -->
-                    <div class="cart-actions">
-                        <button type="button" class="add-to-cart-button" data-product-id="{{ product.product_id }}">
-                            Add to Cart
-                        </button>
-                        <span class="product-quantity" data-product-id="{{ product.product_id }}">Quantity: 0</span>
-                        <button type="button" class="remove-from-cart-button" data-product-id="{{ product.product_id }}">
-                            Remove from Cart
-                        </button>
-                    </div>
-                </div>
+<!-- Combined Search and Filters -->
+<div class="container my-4">
+   <form action="{{ url_for('home') }}" method="GET" id="filterForm" class="form-inline justify-content-center">
+      <!-- Search Query Input -->
+      <input 
+         type="text" 
+         name="query" 
+         placeholder="Search for a product..." 
+         value="{{ request.args.get('query', '') }}" 
+         class="form-control mr-2" 
+         style="width: 300px;"
+         >
+      <!-- Sort By -->
+      <label for="sort" class="mr-2">Sort by:</label>
+      <select name="order_by" id="sort" class="form-control mr-4">
+      <option value="asc" {% if order_by == 'asc' %}selected{% endif %}>Price: Low to High</option>
+      <option value="desc" {% if order_by == 'desc' %}selected{% endif %}>Price: High to Low</option>
+      </select>
+      <!-- Filter by Category -->
+      <label for="category" class="mr-2">Category:</label>
+      <select name="category" id="category" class="form-control mr-4">
+      <option value="" {% if not selected_category %}selected{% endif %}>All Categories</option>
+      {% for category in categories %}
+      <option value="{{ category.name }}" {% if category.name == selected_category %}selected{% endif %}>
+      {{ category.name }}
+      </option>
+      {% endfor %}
+      </select>
+      <!-- Filter by Store -->
+      <label for="store" class="mr-2">Store:</label>
+      <select name="store" id="store" class="form-control mr-4">
+      <option value="" {% if not selected_store %}selected{% endif %}>All Stores</option>
+      {% for store in stores %}
+      <option value="{{ store.name }}" {% if store.name == selected_store %}selected{% endif %}>
+      {{ store.name }}
+      </option>
+      {% endfor %}
+      </select>
+      <!-- Reset to First Page -->
+      <input type="hidden" name="page" value="1">
+   </form>
+   <script>
+      // Auto-submit form on sorting, category, store, or search query change
+      document.getElementById('sort').addEventListener('change', function() {
+          document.getElementById('filterForm').submit();
+      });
+      document.getElementById('category').addEventListener('change', function() {
+          document.getElementById('filterForm').submit();
+      });
+      document.getElementById('store').addEventListener('change', function() {
+          document.getElementById('filterForm').submit();
+      });
+      document.querySelector('input[name="query"]').addEventListener('input', function() {
+          // Debounce the search to prevent excessive submissions
+          clearTimeout(this.searchTimeout);
+          this.searchTimeout = setTimeout(() => {
+              document.getElementById('filterForm').submit();
+          }, 500); // Adjust delay as needed
+      
+      });
+   </script>
+</div>
+<!-- Warning Message -->
+<div class="warning-message" id="warningMessage" style="display: none;">
+   You can compare up to 4 products at a time.
+</div>
+<!-- Product Container -->
+<div class="product-container">
+   <form id="compareForm" method="GET" action="{{ url_for('compare') }}">
+      <div class="row" id="product-container">
+         {% for product_tuple in products %}
+         {% set product = product_tuple[0] %}
+         {% set min_price = product_tuple[1] %}
+         <div class="col-md-3 col-sm-6">
+            <div class="product-card">
+               <!-- Selection Button -->
+               <button type="button" class="select-button" data-product-id="{{ product.product_id }}">
+               <img src="{{ url_for('static', filename='icons/plus.svg') }}" alt="Select">
+               </button>
+               <a href="{{ url_for('product_detail', product_id=product.product_id) }}" style="text-decoration: none; color: inherit;">
+                  <img src="{{ product.image_url }}" alt="{{ product.name }}">
+                  <h2>{{ product.name }}</h2>
+                  <p class="category">{{ product.sub_category.category.name }}</p>
+                  {% for price in product.prices %}
+                  <div class="store-price-container">
+               <a href="{{ product.link }}" target="_blank" class="store-info" title="View {{ product.name }} at {{ price.store.name }}">
+               <img src="{{ url_for('static', filename='logos/' ~ price.store.name|lower|replace(' ', '_') ~ '.jpeg') }}" alt="{{ price.store.name }} Logo" class="store-logo">
+               </a>
+               {% if price.price == min_price %}
+               <p class="price">{{ price.store.name.capitalize() }}</p>
+               <p class="price">{{ min_price }} €</p>
+               {% else %}
+               <p class="bad-price">{{ price.store.name.capitalize() }}</p>
+               <p class="bad-price">{{ price.price }} €</p>
+               {% endif %}
+               </div>
+               {% endfor %}
+               </a>
+               </a>
+               <!-- Cart Actions -->
+               <div class="cart-actions">
+                  <button type="button" class="add-to-cart-button" data-product-id="{{ product.product_id }}">
+                  Add to Cart
+                  </button>
+                  <span class="product-quantity" data-product-id="{{ product.product_id }}">Quantity: 0</span>
+                  <button type="button" class="remove-from-cart-button" data-product-id="{{ product.product_id }}">
+                  Remove from Cart
+                  </button>
+               </div>
             </div>
-            {% endfor %}
-        </div>
-
-     
-        <!-- Fixed Action Buttons -->
-        <div class="fixed-action-buttons">
-            <button type="submit" form="compareForm" class="compare-button" id="compareButton">Compare Products</button>
-
-            <button type="button" class="reset-button" id="resetButton">Reset Compare</button>
-        </div>
-
-
-        </form>
-    </div>
-
-
-    <!-- Infinite Scroll Script -->
-    <script>
-        let page = {{ page }};
-        let totalPages = {{ total_pages }};
-        let isLoading = false;
-
-        window.addEventListener('scroll', () => {
-            if ((window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 500) && !isLoading && page < totalPages) {
-                loadMoreProducts();
-            }
-        });
-
-        function loadMoreProducts() {
-            isLoading = true;
-            page += 1;
-        
-            let url = `/?page=${page}`;
-        
-            // Get current query parameters from the form
-            const form = document.getElementById('filterForm');
-            const formData = new FormData(form);
-            const params = new URLSearchParams(formData);
-        
-            // Update the URL with all current parameters
-            for (const [key, value] of params.entries()) {
-                if (key !== 'page') { // 'page' is already handled
-                    url += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-                }
-            }
-        
-            fetch(url)
-                .then(response => response.text())
-                .then(data => {
-                    const parser = new DOMParser();
-                    const htmlDocument = parser.parseFromString(data, 'text/html');
-                    const newProducts = htmlDocument.querySelector('#product-container').innerHTML;
-                    document.querySelector('#product-container').insertAdjacentHTML('beforeend', newProducts);
-        
-                    // Re-initialize the select buttons event listeners
-                    initializeSelectButtons();
-        
-                    // Re-initialize the cart buttons event listeners
-                    initializeCartButtons();
-        
-                    isLoading = false;
-                })
-                .catch(error => {
-                    console.error('Error loading more products:', error);
-                    isLoading = false;
-                });
-        }
-        
-        function initializeSelectButtons() {
-            const selectButtons = document.querySelectorAll('.select-button');
-            const maxCompare = 4;
-            const warningMessage = document.getElementById('warningMessage');
-            const fixedActionButtons = document.querySelector('.fixed-action-buttons');
-            const compareButton = document.getElementById('compareButton');
-            const resetButton = document.getElementById('resetButton');
-        
-            // Initialize selectedProducts from Local Storage
-            let selectedProducts = new Set(JSON.parse(localStorage.getItem('selectedProducts') || '[]'));
-        
-            // Update UI to reflect selected products
-            selectButtons.forEach(function(button) {
-                const productId = button.getAttribute('data-product-id');
-                if (selectedProducts.has(productId)) {
-                    // Update button to show selected state
-                    button.innerHTML = `<img src="{{ url_for('static', filename='icons/minus.svg') }}" alt="Deselect">`;
-                    button.classList.add('selected');
-                }
-            });
-        
-            // Show or hide the fixed action buttons based on selectedProducts size
-            toggleActionButtons(selectedProducts.size);
-        
-            // Update hidden inputs initially
-            updateSelectedProducts();
-        
-            selectButtons.forEach(function(button) {
-                const productId = button.getAttribute('data-product-id');
-        
-                button.addEventListener('click', function(event) {
-                    event.stopPropagation();
-                    if (selectedProducts.has(productId)) {
-                        // Deselect product
-                        selectedProducts.delete(productId);
-                        button.innerHTML = `<img src="{{ url_for('static', filename='icons/plus.svg') }}" alt="Select">`;
-                        button.classList.remove('selected');
-                    } else {
-                        if (selectedProducts.size >= maxCompare) {
-                            warningMessage.style.display = 'block';
-                            setTimeout(function() {
-                                warningMessage.style.display = 'none';
-                            }, 3000);
-                            return;
-                        }
-                        // Select product
-                        selectedProducts.add(productId);
-                        button.innerHTML = `<img src="{{ url_for('static', filename='icons/minus.svg') }}" alt="Deselect">`;
-                        button.classList.add('selected');
-                    }
-        
-                    // Update hidden input fields
-                    updateSelectedProducts();
-        
-                    // Show or hide the fixed action buttons
-                    toggleActionButtons(selectedProducts.size);
-        
-                    // Save selectedProducts to Local Storage
-                    localStorage.setItem('selectedProducts', JSON.stringify(Array.from(selectedProducts)));
-                });
-            });
-        
-            // Function to update hidden input fields
-            function updateSelectedProducts() {
-                // Remove existing hidden inputs
-                const existingInputs = document.querySelectorAll('.selected-product-input');
-                existingInputs.forEach(input => input.remove());
-        
-                // Add hidden inputs for selected products
-                selectedProducts.forEach(productId => {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = 'compare_products';
-                    input.value = productId;
-                    input.classList.add('selected-product-input');
-                    document.getElementById('compareForm').appendChild(input);
-                });
-            }
-        
-            // Function to show or hide the fixed action buttons
-            function toggleActionButtons(selectionSize) {
-                if (selectionSize > 0) {
-                    fixedActionButtons.classList.add('show');
-                } else {
-                    fixedActionButtons.classList.remove('show');
-                }
-            }
-        
-            // Add event listener to the Reset Compare button
-            resetButton.addEventListener('click', function() {
-                // Clear the selectedProducts set and Local Storage
-                selectedProducts.clear();
-                localStorage.removeItem('selectedProducts');
-        
-                // Update the UI
-                selectButtons.forEach(function(button) {
-                    button.innerHTML = `<img src="{{ url_for('static', filename='icons/plus.svg') }}" alt="Select">`;
-                    button.classList.remove('selected');
-                });
-        
-                // Hide the fixed action buttons
-                toggleActionButtons(selectedProducts.size);
-        
-                // Remove hidden inputs
-                const existingInputs = document.querySelectorAll('.selected-product-input');
-                existingInputs.forEach(input => input.remove());
-            });
-        }
-        
-
-        
-        function initializeCartButtons() {
-            const addToCartButtons = document.querySelectorAll('.add-to-cart-button');
-            const removeFromCartButtons = document.querySelectorAll('.remove-from-cart-button');
-            const cartCountElement = document.getElementById('cartItemCount');
-        
-            // Initialize cart from Local Storage
-            let cart = JSON.parse(localStorage.getItem('cart')) || {};
-        
-            // Update cart count and quantities on page load
-            updateCartDisplay();
-        
-            addToCartButtons.forEach(function(button) {
-                const productId = button.getAttribute('data-product-id');
-        
-                button.addEventListener('click', function(event) {
-                    event.stopPropagation();
-        
-                    // Add product to cart
-                    if (cart[productId]) {
-                        cart[productId] += 1; // Increase quantity
-                    } else {
-                        cart[productId] = 1; // Add new item
-                    }
-        
-                    // Save cart to Local Storage
-                    localStorage.setItem('cart', JSON.stringify(cart));
-        
-                    // Update cart display
-                    updateCartDisplay();
-        
-                    // Provide feedback to the user
-                    button.textContent = 'Added to Cart';
-                    setTimeout(() => {
-                        button.textContent = 'Add to Cart';
-                    }, 1000);
-                });
-            });
-        
-            removeFromCartButtons.forEach(function(button) {
-                const productId = button.getAttribute('data-product-id');
-        
-                button.addEventListener('click', function(event) {
-                    event.stopPropagation();
-        
-                    // Remove product from cart
-                    if (cart[productId]) {
-                        cart[productId] -= 1; // Decrease quantity
-        
-                        if (cart[productId] <= 0) {
-                            delete cart[productId]; // Remove item if quantity is zero
-                        }
-        
-                        // Save cart to Local Storage
-                        localStorage.setItem('cart', JSON.stringify(cart));
-        
-                        // Update cart display
-                        updateCartDisplay();
-                    }
-                });
-            });
-        
-            function updateCartDisplay() {
-                // Update cart count
-                const itemCount = Object.values(cart).reduce((a, b) => a + b, 0);
-                cartCountElement.textContent = itemCount;
-        
-                // Update quantity display for each product
-                const quantityDisplays = document.querySelectorAll('.product-quantity');
-                quantityDisplays.forEach(function(span) {
-                    const productId = span.getAttribute('data-product-id');
-                    const quantity = cart[productId] || 0;
-                    span.textContent = `Quantity: ${quantity}`;
-                });
-            }
-        }
-        initializeSelectButtons();
-        initializeCartButtons();
-        
-        
-    </script>
-
-    <!-- Include Bootstrap JS and dependencies -->
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    {%endblock%}
+         </div>
+         {% endfor %}
+      </div>
+      <!-- Fixed Action Buttons -->
+      <div class="fixed-action-buttons">
+         <button type="submit" form="compareForm" class="compare-button" id="compareButton">Compare Products</button>
+         <button type="button" class="reset-button" id="resetButton">Reset Compare</button>
+      </div>
+   </form>
+</div>
+<!-- Infinite Scroll Script -->
+<script>
+   let page = {{ page }};
+   let totalPages = {{ total_pages }};
+   let isLoading = false;
+   
+   window.addEventListener('scroll', () => {
+       if ((window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 500) && !isLoading && page < totalPages) {
+           loadMoreProducts();
+       }
+   });
+   
+   function loadMoreProducts() {
+       isLoading = true;
+       page += 1;
+   
+       let url = `/?page=${page}`;
+   
+       // Get current query parameters from the form
+       const form = document.getElementById('filterForm');
+       const formData = new FormData(form);
+       const params = new URLSearchParams(formData);
+   
+       // Update the URL with all current parameters
+       for (const [key, value] of params.entries()) {
+           if (key !== 'page') { // 'page' is already handled
+               url += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+           }
+       }
+   
+       fetch(url)
+           .then(response => response.text())
+           .then(data => {
+               const parser = new DOMParser();
+               const htmlDocument = parser.parseFromString(data, 'text/html');
+               const newProducts = htmlDocument.querySelector('#product-container').innerHTML;
+               document.querySelector('#product-container').insertAdjacentHTML('beforeend', newProducts);
+   
+               // Re-initialize the select buttons event listeners
+               initializeSelectButtons();
+   
+               // Re-initialize the cart buttons event listeners
+               initializeCartButtons();
+   
+               isLoading = false;
+           })
+           .catch(error => {
+               console.error('Error loading more products:', error);
+               isLoading = false;
+           });
+   }
+   
+   function initializeSelectButtons() {
+       const selectButtons = document.querySelectorAll('.select-button');
+       const maxCompare = 4;
+       const warningMessage = document.getElementById('warningMessage');
+       const fixedActionButtons = document.querySelector('.fixed-action-buttons');
+       const compareButton = document.getElementById('compareButton');
+       const resetButton = document.getElementById('resetButton');
+   
+       // Initialize selectedProducts from Local Storage
+       let selectedProducts = new Set(JSON.parse(localStorage.getItem('selectedProducts') || '[]'));
+   
+       // Update UI to reflect selected products
+       selectButtons.forEach(function(button) {
+           const productId = button.getAttribute('data-product-id');
+           if (selectedProducts.has(productId)) {
+               // Update button to show selected state
+               button.innerHTML = `<img src="{{ url_for('static', filename='icons/minus.svg') }}" alt="Deselect">`;
+               button.classList.add('selected');
+           }
+       });
+   
+       // Show or hide the fixed action buttons based on selectedProducts size
+       toggleActionButtons(selectedProducts.size);
+   
+       // Update hidden inputs initially
+       updateSelectedProducts();
+   
+       selectButtons.forEach(function(button) {
+           const productId = button.getAttribute('data-product-id');
+   
+           button.addEventListener('click', function(event) {
+               event.stopPropagation();
+               if (selectedProducts.has(productId)) {
+                   // Deselect product
+                   selectedProducts.delete(productId);
+                   button.innerHTML = `<img src="{{ url_for('static', filename='icons/plus.svg') }}" alt="Select">`;
+                   button.classList.remove('selected');
+               } else {
+                   if (selectedProducts.size >= maxCompare) {
+                       warningMessage.style.display = 'block';
+                       setTimeout(function() {
+                           warningMessage.style.display = 'none';
+                       }, 3000);
+                       return;
+                   }
+                   // Select product
+                   selectedProducts.add(productId);
+                   button.innerHTML = `<img src="{{ url_for('static', filename='icons/minus.svg') }}" alt="Deselect">`;
+                   button.classList.add('selected');
+               }
+   
+               // Update hidden input fields
+               updateSelectedProducts();
+   
+               // Show or hide the fixed action buttons
+               toggleActionButtons(selectedProducts.size);
+   
+               // Save selectedProducts to Local Storage
+               localStorage.setItem('selectedProducts', JSON.stringify(Array.from(selectedProducts)));
+           });
+       });
+   
+       // Function to update hidden input fields
+       function updateSelectedProducts() {
+           // Remove existing hidden inputs
+           const existingInputs = document.querySelectorAll('.selected-product-input');
+           existingInputs.forEach(input => input.remove());
+   
+           // Add hidden inputs for selected products
+           selectedProducts.forEach(productId => {
+               const input = document.createElement('input');
+               input.type = 'hidden';
+               input.name = 'compare_products';
+               input.value = productId;
+               input.classList.add('selected-product-input');
+               document.getElementById('compareForm').appendChild(input);
+           });
+       }
+   
+       // Function to show or hide the fixed action buttons
+       function toggleActionButtons(selectionSize) {
+           if (selectionSize > 0) {
+               fixedActionButtons.classList.add('show');
+           } else {
+               fixedActionButtons.classList.remove('show');
+           }
+       }
+   
+       // Add event listener to the Reset Compare button
+       resetButton.addEventListener('click', function() {
+           // Clear the selectedProducts set and Local Storage
+           selectedProducts.clear();
+           localStorage.removeItem('selectedProducts');
+   
+           // Update the UI
+           selectButtons.forEach(function(button) {
+               button.innerHTML = `<img src="{{ url_for('static', filename='icons/plus.svg') }}" alt="Select">`;
+               button.classList.remove('selected');
+           });
+   
+           // Hide the fixed action buttons
+           toggleActionButtons(selectedProducts.size);
+   
+           // Remove hidden inputs
+           const existingInputs = document.querySelectorAll('.selected-product-input');
+           existingInputs.forEach(input => input.remove());
+       });
+   }
+   
+   
+   
+   function initializeCartButtons() {
+       const addToCartButtons = document.querySelectorAll('.add-to-cart-button');
+       const removeFromCartButtons = document.querySelectorAll('.remove-from-cart-button');
+       const cartCountElement = document.getElementById('cartItemCount');
+   
+       // Initialize cart from Local Storage
+       let cart = JSON.parse(localStorage.getItem('cart')) || {};
+   
+       // Update cart count and quantities on page load
+       updateCartDisplay();
+   
+       addToCartButtons.forEach(function(button) {
+           const productId = button.getAttribute('data-product-id');
+   
+           button.addEventListener('click', function(event) {
+               event.stopPropagation();
+   
+               // Add product to cart
+               if (cart[productId]) {
+                   cart[productId] += 1; // Increase quantity
+               } else {
+                   cart[productId] = 1; // Add new item
+               }
+   
+               // Save cart to Local Storage
+               localStorage.setItem('cart', JSON.stringify(cart));
+   
+               // Update cart display
+               updateCartDisplay();
+   
+               // Provide feedback to the user
+               button.textContent = 'Added to Cart';
+               setTimeout(() => {
+                   button.textContent = 'Add to Cart';
+               }, 1000);
+           });
+       });
+   
+       removeFromCartButtons.forEach(function(button) {
+           const productId = button.getAttribute('data-product-id');
+   
+           button.addEventListener('click', function(event) {
+               event.stopPropagation();
+   
+               // Remove product from cart
+               if (cart[productId]) {
+                   cart[productId] -= 1; // Decrease quantity
+   
+                   if (cart[productId] <= 0) {
+                       delete cart[productId]; // Remove item if quantity is zero
+                   }
+   
+                   // Save cart to Local Storage
+                   localStorage.setItem('cart', JSON.stringify(cart));
+   
+                   // Update cart display
+                   updateCartDisplay();
+               }
+           });
+       });
+   
+       function updateCartDisplay() {
+           // Update cart count
+           const itemCount = Object.values(cart).reduce((a, b) => a + b, 0);
+           cartCountElement.textContent = itemCount;
+   
+           // Update quantity display for each product
+           const quantityDisplays = document.querySelectorAll('.product-quantity');
+           quantityDisplays.forEach(function(span) {
+               const productId = span.getAttribute('data-product-id');
+               const quantity = cart[productId] || 0;
+               span.textContent = `Quantity: ${quantity}`;
+           });
+       }
+   }
+   initializeSelectButtons();
+   initializeCartButtons();
+   
+   
+</script>
+<!-- Include Bootstrap JS and dependencies -->
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+{%endblock%}
 </html>
