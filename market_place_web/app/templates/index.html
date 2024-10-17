@@ -1,69 +1,264 @@
 {% extends "base.html" %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
+<style>
+    body {
+        font-family: 'Roboto', Arial, sans-serif;
+        background-color: #f4f4f4;
+        color: #333;
+    }
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    .search-filters {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    .form-control {
+        border-radius: 20px;
+        border: 1px solid #ddd;
+        padding: 10px 15px;
+    }
+    .form-control:focus {
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    .btn-primary {
+        background-color: #007bff;
+        border: none;
+        border-radius: 20px;
+        padding: 10px 20px;
+        transition: background-color 0.3s ease;
+    }
+    .btn-primary:hover {
+        background-color: #0056b3;
+    }
+    .product-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 20px;
+    }
+    .product-card {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        transition: transform 0.3s ease;
+    }
+    .product-card:hover {
+        transform: translateY(-5px);
+    }
+    .product-image {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+    }
+    .product-details {
+        padding: 15px;
+    }
+    .product-name {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    .product-category {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 10px;
+    }
+    .store-price-container {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    .store-logo {
+        width: 30px;
+        height: 30px;
+        margin-right: 10px;
+    }
+    .price {
+        font-weight: bold;
+        color: #28a745;
+    }
+    .bad-price {
+        color: #dc3545;
+    }
+    .cart-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 15px;
+        background-color: #f8f9fa;
+    }
+    .select-button, .add-to-cart-button, .remove-from-cart-button {
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        border-radius: 20px;
+        padding: 5px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+    .select-button:hover, .add-to-cart-button:hover, .remove-from-cart-button:hover {
+        background-color: #0056b3;
+    }
+    .product-quantity {
+        font-size: 12px;
+        color: #666;
+    }
+    .fixed-action-buttons {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+    }
+    .compare-button, .reset-button {
+        margin-top: 10px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 20px;
+        color: #fff;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+    .compare-button {
+        background-color: #28a745;
+    }
+    .compare-button:hover {
+        background-color: #218838;
+    }
+    .reset-button {
+        background-color: #dc3545;
+    }
+    .reset-button:hover {
+        background-color: #c82333;
+    }
+    .warning-message {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #ffc107;
+        color: #333;
+        padding: 10px 20px;
+        border-radius: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+    }
+</style>
 {% endblock %}
+
 {% block content %}
-<!-- Combined Search and Filters -->
-<div class="container my-4">
-   <form action="{{ url_for('home') }}" method="GET" id="filterForm" class="form-inline justify-content-center">
-      <!-- Search Query Input -->
-      <input 
-         type="text" 
-         name="query" 
-         placeholder="Search for a product..." 
-         value="{{ request.args.get('query', '') }}" 
-         class="form-control mr-2" 
-         style="width: 300px;"
-         >
-      <!-- Sort By -->
-      <label for="sort" class="mr-2">Sort by:</label>
-      <select name="order_by" id="sort" class="form-control mr-4">
-      <option value="asc" {% if order_by == 'asc' %}selected{% endif %}>Price: Low to High</option>
-      <option value="desc" {% if order_by == 'desc' %}selected{% endif %}>Price: High to Low</option>
-      </select>
-      <!-- Filter by Category -->
-      <label for="category" class="mr-2">Category:</label>
-      <select name="category" id="category" class="form-control mr-4">
-      <option value="" {% if not selected_category %}selected{% endif %}>All Categories</option>
-      {% for category in categories %}
-      <option value="{{ category.name }}" {% if category.name == selected_category %}selected{% endif %}>
-      {{ category.name }}
-      </option>
-      {% endfor %}
-      </select>
-      <!-- Filter by Store -->
-      <label for="store" class="mr-2">Store:</label>
-      <select name="store" id="store" class="form-control mr-4">
-      <option value="" {% if not selected_store %}selected{% endif %}>All Stores</option>
-      {% for store in stores %}
-      <option value="{{ store.name }}" {% if store.name == selected_store %}selected{% endif %}>
-      {{ store.name }}
-      </option>
-      {% endfor %}
-      </select>
-      <!-- Reset to First Page -->
-      <input type="hidden" name="page" value="1">
-   </form>
+<div class="container">
+    <div class="search-filters">
+        <form action="{{ url_for('home') }}" method="GET" id="filterForm" class="form-inline justify-content-between">
+            <div class="form-group mb-2">
+                <input type="text" name="query" placeholder="Search for a product..." value="{{ request.args.get('query', '') }}" class="form-control">
+            </div>
+            <div class="form-group mb-2">
+                <select name="city" id="city" class="form-control">
+                    <option value="" {% if not selected_city %}selected{% endif %}>All Cities</option>
+                    {% for city in cities %}
+                    <option value="{{ city.city }}" {% if city.city == selected_city %}selected{% endif %}>{{ city.city }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group mb-2">
+                <select name="order_by" id="sort" class="form-control">
+                    <option value="asc" {% if order_by == 'asc' %}selected{% endif %}>Price: Low to High</option>
+                    <option value="desc" {% if order_by == 'desc' %}selected{% endif %}>Price: High to Low</option>
+                </select>
+            </div>
+            <div class="form-group mb-2">
+                <select name="category" id="category" class="form-control">
+                    <option value="" {% if not selected_category %}selected{% endif %}>All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category.name }}" {% if category.name == selected_category %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group mb-2">
+                <select name="store" id="store" class="form-control">
+                    <option value="" {% if not selected_store %}selected{% endif %}>All Stores</option>
+                    {% for store in stores %}
+                    <option value="{{ store.name }}" {% if store.name == selected_store %}selected{% endif %}>{{ store.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <input type="hidden" name="page" value="1">
+        </form>
+    </div>
+
+    <div class="warning-message" id="warningMessage" style="display: none;">
+        You can compare up to 4 products at a time.
+    </div>
+
+    <div class="product-container" id="product-container">
+        {% for product_tuple in products %}
+        {% set product = product_tuple[0] %}
+        {% set min_price = product_tuple[1] %}
+        <div class="product-card">
+            <img src="{{ product.image_url }}" alt="{{ product.name }}" class="product-image">
+            <div class="product-details">
+                <h2 class="product-name">{{ product.name }}</h2>
+                <p class="product-category">{{ product.sub_category.category.name }}</p>
+                {% for price in product.prices %}
+                <div class="store-price-container">
+                    <img src="{{ url_for('static', filename='logos/' ~ price.store.name|lower|replace(' ', '_') ~ '.jpeg') }}" alt="{{ price.store.name }} Logo" class="store-logo">
+                    <span class="{% if price.price == min_price %}price{% else %}bad-price{% endif %}">
+                        {{ price.store.name.capitalize() }}: {{ price.price }} €
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="cart-actions">
+                <button type="button" class="select-button" data-product-id="{{ product.product_id }}">
+                    <img src="{{ url_for('static', filename='icons/plus.svg') }}" alt="Select">
+                </button>
+                <button type="button" class="add-to-cart-button" data-product-id="{{ product.product_id }}">
+                    Add to Cart
+                </button>
+                <span class="product-quantity" data-product-id="{{ product.product_id }}">Quantity: 0</span>
+                <button type="button" class="remove-from-cart-button" data-product-id="{{ product.product_id }}">
+                    Remove
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="fixed-action-buttons">
+        <button type="submit" form="compareForm" class="compare-button" id="compareButton">Compare Products</button>
+        <button type="button" class="reset-button" id="resetButton">Reset Compare</button>
+    </div>
+</div>
    <script>
-      // Auto-submit form on sorting, category, store, or search query change
-      document.getElementById('sort').addEventListener('change', function() {
-          document.getElementById('filterForm').submit();
-      });
-      document.getElementById('category').addEventListener('change', function() {
-          document.getElementById('filterForm').submit();
-      });
-      document.getElementById('store').addEventListener('change', function() {
-          document.getElementById('filterForm').submit();
-      });
-      document.querySelector('input[name="query"]').addEventListener('input', function() {
-          // Debounce the search to prevent excessive submissions
-          clearTimeout(this.searchTimeout);
-          this.searchTimeout = setTimeout(() => {
-              document.getElementById('filterForm').submit();
-          }, 500); // Adjust delay as needed
-      
-      });
+    // Auto-submit form on sorting, category, store, city, or search query change
+    document.getElementById('sort').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+    document.getElementById('category').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+    document.getElementById('store').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+    document.getElementById('city').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+    document.querySelector('input[name="query"]').addEventListener('input', function() {
+        // Debounce the search to prevent excessive submissions
+        clearTimeout(this.searchTimeout);
+        this.searchTimeout = setTimeout(() => {
+            document.getElementById('filterForm').submit();
+        }, 500); // Adjust delay as needed
+    });
    </script>
 </div>
 <!-- Warning Message -->

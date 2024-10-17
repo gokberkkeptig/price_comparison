@@ -41,34 +41,166 @@ function refreshCart() {
     });
 }
 
+
 function displayCartItems(products) {
     let cartContainer = document.getElementById('cartContainer');
-    cartContainer.innerHTML = '';
+    cartContainer.innerHTML = '<h2 class="section-title">Your Shopping Cart</h2>';
+
+    if (products.length === 0) {
+        cartContainer.innerHTML += '<p class="empty-cart">Your cart is empty. Start shopping!</p>';
+        return;
+    }
+
+    let cartList = document.createElement('ul');
+    cartList.classList.add('cart-list');
 
     products.forEach(product => {
         let quantity = cart[product.product_id];
-        let productDiv = document.createElement('div');
-        productDiv.classList.add('cart-item');
+        let cartItem = document.createElement('li');
+        cartItem.classList.add('cart-item');
+        cartItem.setAttribute('data-product-id', product.product_id);
 
-        productDiv.innerHTML = `
-            <img src="${product.image_url}" alt="${product.name}" class="cart-item-image">
-            <div class="cart-item-details">
-                <h3>${product.name}</h3>
-                <div class="quantity-controls">
-                    <button class="quantity-decrease" data-product-id="${product.product_id}">-</button>
-                    <span class="quantity-display">${quantity}</span>
-                    <button class="quantity-increase" data-product-id="${product.product_id}">+</button>
-                </div>
-                <button class="remove-item btn btn-link" data-product-id="${product.product_id}">Remove</button>
+        // Check if price exists and is a number
+        let price = 0;
+        if (product.prices && Array.isArray(product.prices) && product.prices.length > 0) {
+            price = parseFloat(product.prices[0].price);
+        } else if (typeof product.price === 'number') {
+            price = product.price;
+        }
+
+        if (isNaN(price)) {
+            console.error('Invalid price for product:', product);
+            price = 0;
+        }
+
+        let totalPrice = price * quantity;
+
+        cartItem.innerHTML = `
+            <div class="cart-item-image">
+                <img src="${product.image_url || '/path/to/placeholder-image.jpg'}" alt="${product.name}">
             </div>
+            <div class="cart-item-details">
+                <h3 class="cart-item-name">${product.name}</h3>
+                <p class="cart-item-price">€${totalPrice.toFixed(2)}</p>
+                <p class="cart-item-unit-price">Unit Price: €${price.toFixed(2)}</p>
+                <div class="quantity-controls">
+                    <button class="quantity-btn quantity-decrease" data-product-id="${product.product_id}">-</button>
+                    <span class="quantity-display">${quantity}</span>
+                    <button class="quantity-btn quantity-increase" data-product-id="${product.product_id}">+</button>
+                </div>
+            </div>
+            <button class="remove-item" data-product-id="${product.product_id}">Remove</button>
         `;
 
-        cartContainer.appendChild(productDiv);
+        cartList.appendChild(cartItem);
     });
+
+    cartContainer.appendChild(cartList);
 
     // Add event listeners for quantity controls and remove buttons
     addCartEventListeners();
 }
+
+function addCartEventListeners() {
+    // Event listeners for increase quantity
+    const increaseButtons = document.querySelectorAll('.quantity-increase');
+    increaseButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const productId = this.getAttribute('data-product-id');
+            increaseQuantity(productId);
+        });
+    });
+
+    // Event listeners for decrease quantity
+    const decreaseButtons = document.querySelectorAll('.quantity-decrease');
+    decreaseButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const productId = this.getAttribute('data-product-id');
+            decreaseQuantity(productId);
+        });
+    });
+
+    // Event listeners for remove item
+    const removeButtons = document.querySelectorAll('.remove-item');
+    removeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const productId = this.getAttribute('data-product-id');
+            removeItemFromCart(productId);
+        });
+    });
+}
+
+// Additional CSS styles
+const styles = `
+    .cart-list {
+        list-style-type: none;
+        padding: 0;
+    }
+    .cart-item {
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid #e0e0e0;
+        padding: 15px 0;
+    }
+    .cart-item-image {
+        width: 80px;
+        height: 80px;
+        margin-right: 15px;
+    }
+    .cart-item-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .cart-item-details {
+        flex-grow: 1;
+    }
+    .cart-item-name {
+        margin: 0 0 5px 0;
+    }
+    .cart-item-price {
+        font-weight: bold;
+        color: #e74c3c;
+    }
+    .cart-item-unit-price {
+        font-size: 0.9em;
+        color: #7f8c8d;
+    }
+    .quantity-controls {
+        display: flex;
+        align-items: center;
+        margin-top: 10px;
+    }
+    .quantity-btn {
+        background-color: #3498db;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        cursor: pointer;
+    }
+    .quantity-display {
+        margin: 0 10px;
+    }
+    .remove-item {
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        cursor: pointer;
+    }
+    .empty-cart {
+        text-align: center;
+        font-style: italic;
+        color: #7f8c8d;
+    }
+`;
+
+// Apply the styles
+const styleSheet = document.createElement("style");
+styleSheet.type = "text/css";
+styleSheet.innerText = styles;
+document.head.appendChild(styleSheet);
+
 
 function addCartEventListeners() {
     // Event listeners for increase quantity
@@ -124,12 +256,39 @@ function addCartEventListeners() {
         // Remove item from cart
         delete cart[productId];
         localStorage.setItem('cart', JSON.stringify(cart));
-        // Refresh UI
-        refreshCart();
+        
+        // Remove item from display without full refresh
+        let itemToRemove = document.querySelector(`.cart-item[data-product-id="${productId}"]`);
+        if (itemToRemove) {
+            itemToRemove.remove();
+        }
+    
+        // If cart is now empty, update display
+        if (Object.keys(cart).length === 0) {
+            let cartContainer = document.getElementById('cartContainer');
+            cartContainer.innerHTML = '<p class="empty-cart">Your cart is empty. Start shopping!</p>';
+            document.getElementById('totalCostContainer').innerHTML = '';
+        } else {
+            // Recalculate totals
+            fetch('/get_cart_products', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ cart: cart })
+            })
+            .then(response => response.json())
+            .then(data => {
+                calculateTotalCosts(data.products, data.stores);
+            })
+            .catch(error => {
+                console.error('Error fetching cart products:', error);
+            });
+        }
     }
     function displayComparisonTable(productData, stores, totals) {
         let totalCostContainer = document.getElementById('totalCostContainer');
-        totalCostContainer.innerHTML = '<h3>Compare Supermarkets</h3>';
+        totalCostContainer.innerHTML = '<h2 class="table-title">Compare Supermarkets</h2>';
     
         // Create table
         let table = document.createElement('table');
@@ -156,10 +315,10 @@ function addCartEventListeners() {
             headerRow.appendChild(th);
         });
     
-        // Last column for total cost per product (optional)
-        let totalProductHeader = document.createElement('th');
-        totalProductHeader.textContent = 'Quantity';
-        headerRow.appendChild(totalProductHeader);
+        // Last column for quantity
+        let quantityHeader = document.createElement('th');
+        quantityHeader.textContent = 'Quantity';
+        headerRow.appendChild(quantityHeader);
     
         thead.appendChild(headerRow);
         table.appendChild(thead);
@@ -167,8 +326,12 @@ function addCartEventListeners() {
         // Create table body with product rows
         let tbody = document.createElement('tbody');
     
-        Object.values(productData).forEach(product => {
+        let totalItems = Object.keys(productData).length;
+        let availableItems = {};
+    
+        Object.values(productData).forEach((product, index) => {
             let tr = document.createElement('tr');
+            tr.classList.add(index % 2 === 0 ? 'even-row' : 'odd-row');
     
             // Product name cell
             let productCell = document.createElement('td');
@@ -180,24 +343,48 @@ function addCartEventListeners() {
                 let td = document.createElement('td');
                 let isAvailable = product.availability[store];
     
+                let icon = document.createElement('span');
+                icon.classList.add('availability-icon');
+                
                 if (isAvailable) {
-                    td.innerHTML = '&#10003;'; // Checkmark symbol
-                    td.classList.add('available');
+                    icon.innerHTML = '✓';
+                    icon.classList.add('available');
+                    availableItems[store] = (availableItems[store] || 0) + 1;
                 } else {
-                    td.innerHTML = '&#10007;'; // Cross symbol
-                    td.classList.add('unavailable');
+                    icon.innerHTML = '×';
+                    icon.classList.add('unavailable');
                 }
     
+                td.appendChild(icon);
                 tr.appendChild(td);
             });
     
-            // Quantity column (optional)
+            // Quantity column
             let quantityCell = document.createElement('td');
             quantityCell.textContent = product.quantity;
             tr.appendChild(quantityCell);
     
             tbody.appendChild(tr);
         });
+    
+        // Add availability summary row
+        let availabilityRow = document.createElement('tr');
+        availabilityRow.classList.add('availability-summary');
+    
+        let availabilitySummaryCell = document.createElement('td');
+        availabilitySummaryCell.textContent = 'Available Items';
+        availabilityRow.appendChild(availabilitySummaryCell);
+    
+        stores.forEach(store => {
+            let td = document.createElement('td');
+            td.textContent = `${availableItems[store] || 0} / ${totalItems}`;
+            availabilityRow.appendChild(td);
+        });
+    
+        let emptyQuantityCell = document.createElement('td');
+        availabilityRow.appendChild(emptyQuantityCell);
+    
+        tbody.appendChild(availabilityRow);
     
         // Add total cost row
         let totalRow = document.createElement('tr');
@@ -208,8 +395,8 @@ function addCartEventListeners() {
         totalLabelCell.textContent = 'Total Cost';
         totalRow.appendChild(totalLabelCell);
     
-        // Find the lowest total cost to highlight the cheapest supermarket
-        let lowestTotal = Math.min(...Object.values(totals));
+        // Find the lowest non-zero total cost
+        let lowestTotal = Math.min(...Object.values(totals).filter(total => total > 0));
     
         stores.forEach(store => {
             let td = document.createElement('td');
@@ -217,7 +404,7 @@ function addCartEventListeners() {
     
             td.textContent = `€${totalCost.toFixed(2)}`;
     
-            if (totalCost === lowestTotal) {
+            if (totalCost === lowestTotal && totalCost > 0) {
                 td.classList.add('lowest-total');
             }
     
@@ -231,9 +418,108 @@ function addCartEventListeners() {
         tbody.appendChild(totalRow);
         table.appendChild(tbody);
         totalCostContainer.appendChild(table);
-    }
     
-
+        // Add CSS styles
+        const styles = `
+            .table-title {
+                font-size: 28px;
+                color: #2c3e50;
+                margin-bottom: 25px;
+                text-align: center;
+                font-weight: 600;
+            }
+            .comparison-table {
+                width: 100%;
+                border-collapse: separate;
+                border-spacing: 0;
+                border: 1px solid #e0e0e0;
+                border-radius: 10px;
+                overflow: hidden;
+                box-shadow: 0 0 25px rgba(0, 0, 0, 0.1);
+                font-family: Arial, sans-serif;
+            }
+            .comparison-table th, .comparison-table td {
+                padding: 18px;
+                text-align: center;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            .comparison-table thead {
+                background-color: #3498db;
+                color: white;
+            }
+            .comparison-table th {
+                font-weight: bold;
+                text-transform: uppercase;
+                font-size: 14px;
+            }
+            .store-logo {
+                max-width: 100px;
+                max-height: 50px;
+                transition: transform 0.3s ease;
+            }
+            .store-logo:hover {
+                transform: scale(1.1);
+            }
+            .even-row {
+                background-color: #ffffff;
+            }
+            .odd-row {
+                background-color: #f9f9f9;
+            }
+            .availability-icon {
+                font-size: 22px;
+                font-weight: bold;
+            }
+            .available {
+                color: #2ecc71;
+            }
+            .unavailable {
+                color: #e74c3c;
+            }
+            .total-row {
+                font-weight: bold;
+                background-color: #ecf0f1;
+                font-size: 18px;
+            }
+            .lowest-total {
+                color: #27ae60;
+                font-weight: bold;
+                position: relative;
+            }
+            .lowest-total::after {
+                content: '★';
+                position: absolute;
+                top: -5px;
+                right: -5px;
+                font-size: 14px;
+                color: #f39c12;
+            }
+            .availability-summary {
+                background-color: #f2f2f2;
+                font-weight: bold;
+            }
+            .comparison-table tr:hover {
+                background-color: #e8f6fd;
+            }
+            @media (max-width: 768px) {
+                .comparison-table {
+                    font-size: 14px;
+                }
+                .comparison-table th, .comparison-table td {
+                    padding: 10px;
+                }
+                .store-logo {
+                    max-width: 60px;
+                    max-height: 30px;
+                }
+            }
+        `;
+    
+        const styleSheet = document.createElement("style");
+        styleSheet.type = "text/css";
+        styleSheet.innerText = styles;
+        document.head.appendChild(styleSheet);
+    }
     function calculateTotalCosts(products, stores) {
         let totals = {};
         let productData = {};

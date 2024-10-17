@@ -31,12 +31,13 @@ def home():
     per_page = 20  # Items per page
     category_filter = request.args.get('category', '').strip()
     store_filter = request.args.get('store', '').strip()
+    city_filter = request.args.get('city', '').strip()
 
     # Base query
     products_query = Product.query
 
     # Join necessary tables to enable filtering and searching
-    products_query = products_query.join(ProductPrice).join(Store).join(SubCategory).join(Category)
+    products_query = products_query.join(ProductPrice).join(Store).join(SubCategory).join(Category).join(Location)
 
     # Eager load related data to optimize performance
     products_query = products_query.options(
@@ -44,6 +45,10 @@ def home():
         joinedload(Product.prices).joinedload(ProductPrice.store),
         joinedload(Product.prices).joinedload(ProductPrice.location)
     )
+
+    # Apply city filter first
+    if city_filter:
+        products_query = products_query.filter(Location.city.ilike(city_filter))
 
     # Apply full-text search if query is provided
     if query:
@@ -77,23 +82,23 @@ def home():
     # Paginate the results
     products_pagination = products_query.paginate(page=page, per_page=per_page, error_out=False)
 
-    # Retrieve distinct categories and stores for the dropdowns
+    # Retrieve distinct categories, stores, and cities for the dropdowns
     categories = Category.query.order_by(Category.name.asc()).all()
     stores = Store.query.order_by(Store.name.asc()).all()
-    subcategories = SubCategory.query.order_by(SubCategory.name.asc()).all()
+    cities = Location.query.order_by(Location.city.asc()).all()
 
     return render_template('index.html', 
                            products=products_pagination.items, 
                            categories=categories, 
-                           SubCategory=subcategories,
                            stores=stores,
+                           cities=cities,
                            order_by=order_by, 
                            selected_category=category_filter, 
                            selected_store=store_filter, 
+                           selected_city=city_filter, 
                            page=page,
                            total_pages=products_pagination.pages,
-                           query=query)  # Pass the query to the template
-    
+                           query=query)
 from flask import render_template, request, redirect, url_for, flash
 @app.route('/compare', methods=['GET'])
 def compare():

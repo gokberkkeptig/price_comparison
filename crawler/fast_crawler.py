@@ -875,14 +875,14 @@ async def main():
         "--stores",
         nargs="+",
         choices=["penny", "conad", "deco","crai","coop","dodeca"],
-        default=["penny", "conad", "deco","crai","coop","dodeca"],
+        default=["penny", "conad", "deco","crai","dodeca"],
         help="Stores to scrape"
     )
     parser.add_argument(
         "--locations",
         nargs="+",
-        choices=["napoli"],
-        default=["napoli"],
+        choices=["roma"],
+        default=["roma"],
         help="Locations to scrape"
     )
     args = parser.parse_args()
