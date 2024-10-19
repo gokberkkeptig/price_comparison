@@ -888,7 +888,7 @@ async def main():
     args = parser.parse_args()
 
     tasks = [
-        scrape_store_location(store_name, location_name)
+        scrape_store_location(store_name, location_name.capitalize())
         for store_name, location_name in itertools.product(args.stores, args.locations)
     ]
     await asyncio.gather(*tasks)

@@ -224,6 +224,9 @@ def upload_image():
     # Perform OCR on the image
     extracted_text = pytesseract.image_to_string(image, lang='ita', config=config)
     print(extracted_text)
+    if not extracted_text:
+        return jsonify({'error': 'No text detected in the image'}), 400
+    
     prompt = (
         "You are tasked with extracting specific information from the following text of a receipt. "
         "You need to extract:\n"
@@ -277,7 +280,7 @@ def upload_image():
         store_name = 'Unknown Store'  # Default value or handle as per your requirement
     store = Store.query.filter_by(name=store_name).first()
     if not store:
-        store = Store(name=store_name)
+        store = Store(name=store_name.lower())
         db.session.add(store)
         db.session.flush()  # To get the store_id
     

@@ -498,9 +498,7 @@ function addCartEventListeners() {
                 background-color: #f2f2f2;
                 font-weight: bold;
             }
-            .comparison-table tr:hover {
-                background-color: #e8f6fd;
-            }
+     
             @media (max-width: 768px) {
                 .comparison-table {
                     font-size: 14px;

@@ -59,16 +59,16 @@
                         </a>
                     </li>
                                         <!-- Cart Icon -->
+                   
                     <div class="cart-icon">
                         <a href="{{ url_for('checkout') }}">
-                            <img src="{{ url_for('static', filename='icons/cart-trolley-shop.svg') }}" alt="Cart">
+                            Carello<img src="{{ url_for('static', filename='icons/cart-trolley-shop.svg') }}" alt="Cart">
                             <span id="cartItemCount">0</span>
                         </a>
                     </div>
-
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('logout') }}">
-                            <i class="fas fa-sign-out-alt"></i> Disconnettersi
+                            <i class="fas fa-sign-out-alt"></i> Esci
                         </a>
                     </li>
                 {% endif %}

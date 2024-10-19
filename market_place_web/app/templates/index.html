@@ -159,11 +159,11 @@
     <div class="search-filters">
         <form action="{{ url_for('home') }}" method="GET" id="filterForm" class="form-inline justify-content-between">
             <div class="form-group mb-2">
-                <input type="text" name="query" placeholder="Search for a product..." value="{{ request.args.get('query', '') }}" class="form-control">
+                <input type="text" name="query" placeholder="Ricerca..." value="{{ request.args.get('query', '') }}" class="form-control">
             </div>
             <div class="form-group mb-2">
                 <select name="city" id="city" class="form-control">
-                    <option value="" {% if not selected_city %}selected{% endif %}>All Cities</option>
+                    <option value="" {% if not selected_city %}selected{% endif %}>Tutte le città</option>
                     {% for city in cities %}
                     <option value="{{ city.city }}" {% if city.city == selected_city %}selected{% endif %}>{{ city.city }}</option>
                     {% endfor %}
@@ -171,13 +171,13 @@
             </div>
             <div class="form-group mb-2">
                 <select name="order_by" id="sort" class="form-control">
-                    <option value="asc" {% if order_by == 'asc' %}selected{% endif %}>Price: Low to High</option>
-                    <option value="desc" {% if order_by == 'desc' %}selected{% endif %}>Price: High to Low</option>
+                    <option value="asc" {% if order_by == 'asc' %}selected{% endif %}>Prezzo: In ordine crescente</option>
+                    <option value="desc" {% if order_by == 'desc' %}selected{% endif %}>Prezzo: In ordine decrescente</option>
                 </select>
             </div>
             <div class="form-group mb-2">
                 <select name="category" id="category" class="form-control">
-                    <option value="" {% if not selected_category %}selected{% endif %}>All Categories</option>
+                    <option value="" {% if not selected_category %}selected{% endif %}>Tutte le Categorie</option>
                     {% for category in categories %}
                     <option value="{{ category.name }}" {% if category.name == selected_category %}selected{% endif %}>{{ category.name }}</option>
                     {% endfor %}
@@ -185,7 +185,7 @@
             </div>
             <div class="form-group mb-2">
                 <select name="store" id="store" class="form-control">
-                    <option value="" {% if not selected_store %}selected{% endif %}>All Stores</option>
+                    <option value="" {% if not selected_store %}selected{% endif %}>Tutti i supermercati</option>
                     {% for store in stores %}
                     <option value="{{ store.name }}" {% if store.name == selected_store %}selected{% endif %}>{{ store.name }}</option>
                     {% endfor %}
@@ -212,7 +212,7 @@
                 <div class="store-price-container">
                     <img src="{{ url_for('static', filename='logos/' ~ price.store.name|lower|replace(' ', '_') ~ '.jpeg') }}" alt="{{ price.store.name }} Logo" class="store-logo">
                     <span class="{% if price.price == min_price %}price{% else %}bad-price{% endif %}">
-                        {{ price.store.name.capitalize() }}: {{ price.price }} €
+                        {{ price.store.name.capitalize() }}: {{ price.price }} € - {%if price.location_id==4 %}Napoli{%elif price.location_id==11 %}Roma{%endif%} 
                     </span>
                 </div>
                 {% endfor %}
