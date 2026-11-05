@@ -1,52 +1,56 @@
 """
-Async product crawler for Glovo supermarket listings.
+Product crawler using Open Food Facts (Search-a-licious) + Open Prices APIs.
 
-Scrapes product names, prices, and images from Glovo store pages
-and upserts them into the shared PostgreSQL database.
+Fetches real Italian grocery products from Open Food Facts, looks up real
+prices on Open Prices where available, and generates realistic simulated
+prices for the remaining store/location combinations.
 
 Usage:
-    python fast_crawler.py                           # scrape all stores in all locations
-    python fast_crawler.py --stores penny conad      # specific stores
-    python fast_crawler.py --locations roma           # specific location
-    python fast_crawler.py --stores penny --locations napoli
+    python fast_crawler.py                       # fetch all categories
+    python fast_crawler.py --categories Pasta Rice Cheese
+    python fast_crawler.py --max-pages 2         # fewer products (faster)
 
 Requirements:
-    pip install aiohttp beautifulsoup4 sqlalchemy psycopg2-binary python-dotenv
+    pip install aiohttp sqlalchemy psycopg2-binary python-dotenv
 """
 
 import asyncio
 import argparse
-import itertools
+import hashlib
 import logging
 import os
-import re
+import random
 import sys
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 import aiohttp
-from aiohttp import ClientSession
-from bs4 import BeautifulSoup
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-# Add backend to path so we can import shared models
+# ---------------------------------------------------------------------------
+# Imports from sibling packages
+# ---------------------------------------------------------------------------
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 from app.models import (  # noqa: E402
     Store, Location, Category, SubCategory, Product, ProductPrice,
 )
-from app import db  # noqa: E402
+from app import db as _flask_db  # noqa: E402  (imported so models resolve)
 
 from config import (  # noqa: E402
-    DATABASE_URI, BASE_URL, MAX_CONCURRENT_REQUESTS,
-    REQUEST_DELAY_SECONDS, MIN_VALID_PRICE, MAX_VALID_PRICE,
-    LOG_FILE, LOG_LEVEL, USER_AGENT, AVAILABLE_STORES, AVAILABLE_LOCATIONS,
+    DATABASE_URI,
+    OFF_SEARCH_URL, OFF_PRODUCT_FIELDS, OFF_COUNTRY_TAG,
+    OFF_PAGE_SIZE, OFF_MAX_PAGES,
+    OPEN_PRICES_URL,
+    REQUEST_DELAY_SECONDS, MAX_CONCURRENT_REQUESTS,
+    BASE_PRICES, AVAILABLE_STORES, AVAILABLE_LOCATIONS,
+    LOG_FILE, LOG_LEVEL, USER_AGENT,
 )
-from category_mapping import find_category  # noqa: E402
+from category_mapping import CATEGORY_SEARCH_MAP, find_category  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# Database setup (standalone — not using Flask app context)
+# Database (standalone — no Flask app context needed)
 # ---------------------------------------------------------------------------
 engine = create_engine(DATABASE_URI, future=True)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
@@ -61,298 +65,336 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Also log to console
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-logger.addHandler(console_handler)
+_console = logging.StreamHandler()
+_console.setLevel(logging.INFO)
+_console.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+logger.addHandler(_console)
 
 
 # ---------------------------------------------------------------------------
-# Utility functions
+# Helpers
 # ---------------------------------------------------------------------------
-def clean_product_name(name: str) -> str:
-    """Remove trailing ' - number' suffixes from product names."""
-    if not isinstance(name, str):
-        return name
-    return re.sub(r"\s*-\s*\d+$", "", name).strip()
+def _deterministic_price(product_name: str, store: str, city: str,
+                         low: float, high: float) -> float:
+    """Generate a stable-but-varied price for a (product, store, city) triple."""
+    seed = hashlib.md5(f"{product_name}|{store}|{city}".encode()).hexdigest()
+    rng = random.Random(seed)
+    base = rng.uniform(low, high)
+    # Round to realistic grocery price (e.g. €1.49, €2.79)
+    return round(round(base / 0.10) * 0.10 - 0.01, 2)
 
 
-def parse_price(price_text: str) -> float | None:
-    """Parse a price string like '€1,99' into a float. Returns None on failure."""
-    try:
-        cleaned = price_text.replace("€", "").replace(",", ".").strip()
-        price = float(cleaned)
-        if MIN_VALID_PRICE <= price <= MAX_VALID_PRICE:
-            return price
+def _clean_name(name: str | None) -> str | None:
+    """Title-case and strip whitespace."""
+    if not name:
         return None
-    except (ValueError, AttributeError):
-        return None
+    return name.strip().title()
 
 
 # ---------------------------------------------------------------------------
-# Scraping functions
+# Open Food Facts — fetch products via Search-a-licious
 # ---------------------------------------------------------------------------
-async def fetch(session: ClientSession, url: str) -> str:
-    """Fetch a URL and return the response text."""
+async def fetch_off_products(
+    session: aiohttp.ClientSession,
+    off_tag: str,
+    max_pages: int,
+) -> list[dict]:
+    """
+    Search Open Food Facts for Italian products in the given category tag
+    using the Search-a-licious ElasticSearch API.
+    Returns a flat list of simplified product dicts.
+    """
+    products: list[dict] = []
     headers = {"User-Agent": USER_AGENT}
-    async with session.get(url, headers=headers) as response:
-        response.raise_for_status()
-        return await response.text()
+
+    for page in range(1, max_pages + 1):
+        # Search-a-licious uses Lucene query syntax
+        q = f'categories_tags:"en:{off_tag}" countries_tags:"{OFF_COUNTRY_TAG}"'
+        params = {
+            "q": q,
+            "page_size": OFF_PAGE_SIZE,
+            "page": page,
+            "fields": OFF_PRODUCT_FIELDS,
+            "langs": "it,en",
+        }
+        try:
+            await asyncio.sleep(REQUEST_DELAY_SECONDS)
+            async with session.get(OFF_SEARCH_URL, params=params, headers=headers) as resp:
+                if resp.status != 200:
+                    logger.warning("OFF returned %s for tag=%s page=%s", resp.status, off_tag, page)
+                    break
+                data = await resp.json()
+        except Exception as e:
+            logger.error("OFF request failed for tag=%s page=%s: %s", off_tag, page, e)
+            break
+
+        # Search-a-licious returns results in "hits" (not "products")
+        page_products = data.get("hits", [])
+        if not page_products:
+            break
+
+        for p in page_products:
+            name = p.get("product_name_it") or p.get("product_name")
+            if not name or len(name) < 2:
+                continue
+
+            # brands can be a list or a string
+            brands = p.get("brands", "")
+            if isinstance(brands, list):
+                brands = ", ".join(brands)
+
+            products.append({
+                "code": p.get("code"),
+                "name": _clean_name(name),
+                "image_url": p.get("image_url"),
+                "brands": brands,
+                "categories_tags": p.get("categories_tags", []),
+                "link": f"https://world.openfoodfacts.org/product/{p.get('code', '')}",
+            })
+
+        logger.info("OFF tag=%s page=%d → %d products", off_tag, page, len(page_products))
+
+    return products
 
 
-async def extract_subcategory_links(session: ClientSession, url: str) -> list[str]:
-    """Extract subcategory page links from a store's main page."""
+# ---------------------------------------------------------------------------
+# Open Prices — look up real prices (best-effort)
+# ---------------------------------------------------------------------------
+async def fetch_open_prices(
+    session: aiohttp.ClientSession,
+    product_code: str,
+) -> list[dict]:
+    """Fetch real prices for a barcode from the Open Prices API."""
+    url = f"{OPEN_PRICES_URL}/prices"
+    params = {
+        "product_code": product_code,
+        "currency": "EUR",
+        "page_size": 10,
+        "order_by": "-date",
+    }
+    headers = {"User-Agent": USER_AGENT}
     try:
-        html = await fetch(session, url)
-        soup = BeautifulSoup(html, "html.parser")
-        links = []
-
-        for element in soup.find_all("div", class_="carousel__content__element"):
-            a_tag = element.find("a", href=True)
-            if a_tag:
-                link = a_tag["href"]
-                if not link.startswith("http"):
-                    link = BASE_URL + link
-                links.append(link)
-
-        return links
-    except Exception as e:
-        logger.error("Error fetching subcategory links from %s: %s", url, e)
-        return []
-
-
-async def scrape_product_details(session: ClientSession, link: str) -> list[dict]:
-    """Scrape all products from a subcategory page."""
-    try:
-        await asyncio.sleep(REQUEST_DELAY_SECONDS)
-        html = await fetch(session, link)
-        soup = BeautifulSoup(html, "html.parser")
-        products = []
-
-        for grid in soup.find_all("div", class_="grid"):
-            # Extract the Italian subcategory name from the grid title
-            title_el = grid.find("h2", class_="grid__title")
-            italian_subcat = title_el.get_text(strip=True) if title_el else "N/A"
-
-            # Map to English category/subcategory
-            category_name, sub_category_name = find_category(italian_subcat)
-
-            for tile in grid.find_all("div", class_="tile"):
-                # Product name
-                name_el = tile.find("span", class_="tile__description")
-                raw_name = name_el.get_text(strip=True) if name_el else None
-                if not raw_name:
-                    continue
-                name = clean_product_name(raw_name).title()
-
-                # Price
-                price_el = tile.find("span", class_="product-price__effective")
-                price_text = price_el.get_text(strip=True) if price_el else None
-                price = parse_price(price_text) if price_text else None
-                if price is None:
-                    continue
-
-                # Image
-                img_el = tile.find("img", class_="tile__image")
-                image_url = img_el["src"] if img_el and img_el.get("src") else None
-
-                products.append({
-                    "name": name,
-                    "price": price,
-                    "image_url": image_url,
-                    "link": link,
-                    "category": category_name,
-                    "sub_category": sub_category_name,
-                })
-
-        logger.info("Scraped %d products from %s", len(products), link)
-        return products
-
-    except Exception as e:
-        logger.error("Error scraping products from %s: %s", link, e)
+        async with session.get(url, params=params, headers=headers) as resp:
+            if resp.status != 200:
+                return []
+            data = await resp.json()
+            return data.get("items", [])
+    except Exception:
         return []
 
 
 # ---------------------------------------------------------------------------
-# Database upsert
+# Database upsert (runs in thread pool — no async)
 # ---------------------------------------------------------------------------
-def upsert_product(db_session, product_data: dict, store_name: str, city: str) -> None:
-    """Insert or update a product and its price in the database."""
+def _get_or_create(db_session, model, defaults=None, **kwargs):
+    """Thread-safe get-or-create: try SELECT first, INSERT on miss, SELECT on conflict."""
+    instance = db_session.query(model).filter_by(**kwargs).first()
+    if instance:
+        return instance
     try:
-        # Get or create Store
-        store = db_session.query(Store).filter_by(name=store_name).first()
-        if not store:
-            store = Store(name=store_name)
-            db_session.add(store)
-            db_session.flush()
+        instance = model(**kwargs, **(defaults or {}))
+        db_session.add(instance)
+        db_session.flush()
+        return instance
+    except Exception:
+        db_session.rollback()
+        instance = db_session.query(model).filter_by(**kwargs).first()
+        if instance:
+            return instance
+        raise
 
-        # Get or create Location
-        location = db_session.query(Location).filter_by(city=city).first()
-        if not location:
-            location = Location(city=city)
-            db_session.add(location)
-            db_session.flush()
 
-        # Get or create Category
-        category = db_session.query(Category).filter_by(name=product_data["category"]).first()
-        if not category:
-            category = Category(name=product_data["category"])
-            db_session.add(category)
-            db_session.flush()
+def upsert_product(
+    product_data: dict,
+    category_name: str,
+    sub_category_name: str,
+    store_name: str,
+    city: str,
+    country: str,
+    price: float,
+) -> None:
+    """Insert or update one product + one price row."""
+    db_session = SessionLocal()
+    try:
+        store = _get_or_create(db_session, Store, name=store_name)
+        location = _get_or_create(db_session, Location, city=city, country=country)
+        category = _get_or_create(db_session, Category, name=category_name)
+        sub_category = _get_or_create(
+            db_session, SubCategory,
+            name=sub_category_name, category_id=category.category_id,
+        )
 
-        # Get or create SubCategory
-        sub_category = db_session.query(SubCategory).filter_by(
-            name=product_data["sub_category"],
-            category_id=category.category_id,
-        ).first()
-        if not sub_category:
-            sub_category = SubCategory(
-                name=product_data["sub_category"],
-                category_id=category.category_id,
-            )
-            db_session.add(sub_category)
-            db_session.flush()
+        # Product (unique by name + sub_category)
+        product = _get_or_create(
+            db_session, Product,
+            defaults={
+                "link": product_data.get("link"),
+                "image_url": product_data.get("image_url"),
+            },
+            name=product_data["name"],
+            sub_category_id=sub_category.sub_category_id,
+        )
+        # Update metadata if product already existed
+        if product_data.get("image_url"):
+            product.image_url = product_data["image_url"]
+        if product_data.get("link"):
+            product.link = product_data["link"]
 
-        # Get or create Product
-        product = db_session.query(Product).filter_by(name=product_data["name"]).first()
-        if not product:
-            product = Product(
-                name=product_data["name"],
-                sub_category_id=sub_category.sub_category_id,
-                link=product_data.get("link"),
-                image_url=product_data.get("image_url"),
-            )
-            db_session.add(product)
-            db_session.flush()
-        else:
-            # Update metadata if changed
-            if product_data.get("link"):
-                product.link = product_data["link"]
-            if product_data.get("image_url"):
-                product.image_url = product_data["image_url"]
-
-        # Upsert ProductPrice
-        product_price = db_session.query(ProductPrice).filter_by(
+        # Price (unique by product + store + location)
+        pp = db_session.query(ProductPrice).filter_by(
             product_id=product.product_id,
             store_id=store.store_id,
             location_id=location.location_id,
         ).first()
 
         now = datetime.now(timezone.utc)
-
-        if not product_price:
-            product_price = ProductPrice(
+        if not pp:
+            pp = ProductPrice(
                 product_id=product.product_id,
                 store_id=store.store_id,
                 location_id=location.location_id,
-                price=product_data["price"],
+                price=price,
                 last_updated=now,
             )
-            db_session.add(product_price)
+            db_session.add(pp)
         else:
-            product_price.price = product_data["price"]
-            product_price.last_updated = now
+            pp.price = price
+            pp.last_updated = now
 
         db_session.commit()
-
     except Exception as e:
         db_session.rollback()
-        logger.error("DB error for product '%s': %s", product_data.get("name"), e)
+        logger.error("DB error for '%s' @ %s/%s: %s", product_data.get("name"), store_name, city, e)
+    finally:
+        db_session.close()
 
 
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
-async def scrape_store_location(store_name: str, location: str) -> None:
-    """Scrape all products for a given store in a given location."""
-    location_slug = location.lower()
-    store_url = f"{BASE_URL}/it/it/{location_slug}/{store_name}-{location_slug[:3]}/"
+async def process_subcategory(
+    http: aiohttp.ClientSession,
+    cat_name: str,
+    subcat_name: str,
+    off_tags: list[str],
+    max_pages: int,
+    semaphore: asyncio.Semaphore,
+) -> int:
+    """Fetch products for one subcategory, resolve prices, persist."""
+    all_products: list[dict] = []
 
-    logger.info("Starting scrape: %s in %s (%s)", store_name, location, store_url)
+    for tag in off_tags:
+        async with semaphore:
+            prods = await fetch_off_products(http, tag, max_pages)
+            all_products.extend(prods)
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            subcategory_links = await extract_subcategory_links(session, store_url)
-            logger.info("Found %d subcategories for %s in %s", len(subcategory_links), store_name, location)
+    # Deduplicate by product code
+    seen_codes: set[str] = set()
+    unique: list[dict] = []
+    for p in all_products:
+        code = p.get("code")
+        if code and code not in seen_codes:
+            seen_codes.add(code)
+            unique.append(p)
+        elif not code:
+            unique.append(p)
+    all_products = unique
 
-            if not subcategory_links:
-                logger.warning("No subcategories found — the page structure may have changed")
-                return
+    if not all_products:
+        logger.warning("No products found for %s > %s", cat_name, subcat_name)
+        return 0
 
-            # Rate-limited concurrent scraping
-            semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+    logger.info("Processing %d products for %s > %s", len(all_products), cat_name, subcat_name)
 
-            async def limited_scrape(link):
-                async with semaphore:
-                    return await scrape_product_details(session, link)
+    # Price range for this subcategory
+    price_low, price_high = BASE_PRICES.get(subcat_name, (0.99, 4.99))
 
-            tasks = [limited_scrape(link) for link in subcategory_links]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+    # Try to get real prices from Open Prices for a sample of products
+    real_prices: dict[str, float] = {}  # code → EUR price
+    sample = all_products[:20]  # limit API calls
+    for p in sample:
+        code = p.get("code")
+        if not code:
+            continue
+        async with semaphore:
+            await asyncio.sleep(0.5)
+            items = await fetch_open_prices(http, code)
+        for item in items:
+            if item.get("price") and item["price"] > 0:
+                real_prices[code] = item["price"]
+                break  # one price per product is enough
 
-            # Flatten results, skip exceptions
-            all_products = []
-            for result in results:
-                if isinstance(result, Exception):
-                    logger.error("Scraping task failed: %s", result)
-                else:
-                    all_products.extend(result)
+    if real_prices:
+        logger.info("Found %d real prices from Open Prices for %s > %s",
+                     len(real_prices), cat_name, subcat_name)
 
-            logger.info("Total products scraped for %s in %s: %d", store_name, location, len(all_products))
+    # Persist to DB — generate a price per (product, store, location)
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        tasks = []
+        for product_data in all_products:
+            for store_name in AVAILABLE_STORES:
+                for loc in AVAILABLE_LOCATIONS:
+                    code = product_data.get("code", "")
+                    if code in real_prices:
+                        # Use real price + small store/location jitter (±8 %)
+                        jitter_seed = f"{code}|{store_name}|{loc['city']}"
+                        rng = random.Random(hashlib.md5(jitter_seed.encode()).hexdigest())
+                        price = round(real_prices[code] * rng.uniform(0.92, 1.08), 2)
+                    else:
+                        price = _deterministic_price(
+                            product_data["name"], store_name, loc["city"],
+                            price_low, price_high,
+                        )
 
-            # Persist to database using thread pool (avoid blocking event loop)
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                loop = asyncio.get_running_loop()
-                db_tasks = [
-                    loop.run_in_executor(
-                        executor,
+                    tasks.append(loop.run_in_executor(
+                        pool,
                         upsert_product,
-                        SessionLocal(),
-                        product,
-                        store_name,
-                        location.capitalize(),
-                    )
-                    for product in all_products
-                ]
-                await asyncio.gather(*db_tasks, return_exceptions=True)
+                        product_data, cat_name, subcat_name,
+                        store_name, loc["city"], loc["country"],
+                        price,
+                    ))
 
-            logger.info("Data saved for %s in %s", store_name, location)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-    except Exception as e:
-        logger.error("Fatal error scraping %s in %s: %s", store_name, location, e)
+    logger.info("Saved %s > %s (%d products × %d stores × %d locations)",
+                cat_name, subcat_name, len(all_products),
+                len(AVAILABLE_STORES), len(AVAILABLE_LOCATIONS))
+
+    return len(all_products)
 
 
-async def main():
-    parser = argparse.ArgumentParser(
-        description="Scrape grocery product data from Glovo supermarket listings"
+async def main() -> None:
+    parser = argparse.ArgumentParser(description="Fetch grocery products from Open Food Facts")
+    parser.add_argument(
+        "--categories", nargs="+", default=None,
+        help="SubCategory names to fetch (default: all). E.g. --categories Pasta Cheese Milk",
     )
     parser.add_argument(
-        "--stores",
-        nargs="+",
-        choices=AVAILABLE_STORES,
-        default=AVAILABLE_STORES,
-        help="Stores to scrape (default: all)",
-    )
-    parser.add_argument(
-        "--locations",
-        nargs="+",
-        choices=AVAILABLE_LOCATIONS,
-        default=AVAILABLE_LOCATIONS,
-        help="Locations to scrape (default: all)",
+        "--max-pages", type=int, default=OFF_MAX_PAGES,
+        help=f"Max OFF pages per subcategory (default: {OFF_MAX_PAGES})",
     )
     args = parser.parse_args()
 
     logger.info("=" * 60)
-    logger.info("Crawler started — stores: %s, locations: %s", args.stores, args.locations)
+    logger.info("Crawler started — source: Open Food Facts + Open Prices")
     logger.info("=" * 60)
 
-    tasks = [
-        scrape_store_location(store, location.capitalize())
-        for store, location in itertools.product(args.stores, args.locations)
-    ]
-    await asyncio.gather(*tasks)
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+    total = 0
 
-    logger.info("Crawler finished")
+    async with aiohttp.ClientSession() as http:
+        for (cat, subcat), off_tags in CATEGORY_SEARCH_MAP.items():
+            if args.categories and subcat not in args.categories:
+                continue
+            count = await process_subcategory(
+                http, cat, subcat, off_tags, args.max_pages, semaphore,
+            )
+            total += count
+
+    logger.info("=" * 60)
+    logger.info("Crawler finished — %d unique products processed", total)
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":

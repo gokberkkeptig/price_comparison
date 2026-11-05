@@ -1,138 +1,74 @@
 """
-Maps Italian subcategory names from Glovo to English category/subcategory pairs.
+Maps Open Food Facts category tags (English) to the app's Category → SubCategory hierarchy.
 
-This mapping allows the crawler to classify scraped products into a normalized
-category hierarchy even though Glovo uses Italian labels.
+Each entry maps:
+    (app_category, app_subcategory) → list of OFF categories_tags_en values to search for.
+
+The crawler iterates this mapping to fetch products from the OFF API.
 """
 
-CATEGORY_MAPPING = {
-    "Beverages": {
-        "Alcoholic Beverages": [
-            "Alcoliche", "Alcolici", "Aperitivi alcolici", "Birra in bottiglia",
-            "Birra in lattina", "Birre", "Birre analcoliche", "Gin", "Limoncello",
-            "Liquori", "Prosecco", "Prosecco e spumante", "Rhum", "Tequila",
-            "Vini bianchi", "Vini bianchi DOCG", "Vini rossi",
-            "Vini rosati e frizzanti", "Vino bianco", "Vino rosato", "Vino rosso",
-            "Vodka", "Whiskey", "Superalcolici",
-        ],
-        "Non-Alcoholic Beverages": [
-            "100% succo", "Analcoliche", "Analcolici", "Acqua frizzante",
-            "Acqua naturale", "Acqua tonica", "Acque aromatizzate",
-            "Bevande a base di latte", "Bevande da aperitivo",
-            "Bevande e integratori", "Bevande vegetali", "Coca-Cola", "Cola",
-            "Effervescente naturale", "Energy drink", "Succo di limone", "Succhi",
-            "Succhi e spremute fresche", "Succhi multipack", "The", "Thé",
-            "Tè freddo", "Tisane",
-        ],
-    },
-    "Dairy & Eggs": {
-        "Milk": [
-            "Latte", "Latte UHT", "Latte fresco", "Latte vegetale",
-            "Panna e besciamella", "Panna",
-        ],
-        "Cheese": [
-            "Formaggi", "Formaggi freschi", "Formaggi stagionati",
-            "Mozzarella e burrata", "Ricotta", "Mascarpone",
-        ],
-        "Yogurt": [
-            "Yogurt", "Yogurt bianco", "Yogurt alla frutta",
-            "Yogurt greco", "Dessert e budini",
-        ],
-        "Eggs": ["Uova"],
-    },
-    "Bread & Bakery": {
-        "Bread": [
-            "Pane", "Pane fresco", "Pane confezionato", "Panini",
-            "Piadine e wraps", "Focacce",
-        ],
-        "Baked Goods": [
-            "Fette biscottate", "Grissini", "Cracker", "Taralli",
-            "Croissant", "Brioche", "Merendine",
-        ],
-    },
-    "Pasta & Rice": {
-        "Pasta": [
-            "Pasta", "Pasta corta", "Pasta lunga", "Pasta fresca",
-            "Pasta ripiena", "Pasta integrale", "Gnocchi",
-        ],
-        "Rice": [
-            "Riso", "Riso arborio", "Riso basmati", "Riso carnaroli",
-            "Cereali e legumi secchi",
-        ],
-    },
-    "Meat & Fish": {
-        "Fresh Meat": [
-            "Carne", "Carne bovina", "Carne suina", "Pollo e tacchino",
-            "Carne macinata", "Hamburger",
-        ],
-        "Cured Meats": [
-            "Salumi", "Prosciutto", "Prosciutto crudo", "Prosciutto cotto",
-            "Salame", "Mortadella", "Bresaola", "Speck", "Pancetta",
-            "Affettati",
-        ],
-        "Fresh Fish": [
-            "Pesce", "Pesce fresco", "Pesce surgelato", "Gamberi",
-            "Salmone", "Tonno",
-        ],
-    },
-    "Fruits & Vegetables": {
-        "Fresh Fruits": [
-            "Frutta", "Frutta fresca", "Frutta di stagione", "Frutta esotica",
-            "Agrumi",
-        ],
-        "Fresh Vegetables": [
-            "Verdura", "Verdura fresca", "Ortaggi", "Insalate",
-            "Insalate pronte", "Pomodori", "Patate", "Funghi",
-        ],
-    },
-    "Canned & Preserved": {
-        "Canned Goods": [
-            "Conserve", "Pelati e passate", "Legumi in scatola",
-            "Tonno in scatola", "Sottoli e sottaceti",
-        ],
-        "Oils & Condiments": [
-            "Olio", "Olio extra vergine", "Olio di oliva", "Olio di semi",
-            "Aceto", "Aceto balsamico", "Condimenti", "Sughi e pesti",
-            "Sale e pepe", "Spezie ed aromi",
-        ],
-    },
-    "Snacks & Sweets": {
-        "Snacks": [
-            "Patatine", "Snack salati", "Olive", "Frutta secca",
-            "Crackers e grissini",
-        ],
-        "Sweets & Chocolate": [
-            "Cioccolato", "Biscotti", "Dolci", "Caramelle e gomme",
-            "Creme spalmabili", "Nutella", "Marmellate e miele",
-        ],
-        "Ice Cream": [
-            "Gelati", "Gelato", "Ghiaccioli", "Gelati confezionati",
-        ],
-    },
-    "Household & Personal Care": {
-        "Cleaning Products": [
-            "Detersivi", "Detersivo piatti", "Detersivo lavatrice",
-            "Ammorbidente", "Sgrassatore", "Candeggina",
-            "Carta igienica", "Carta casa",
-            "Prodotti per pavimenti",
-        ],
-        "Personal Care": [
-            "Bagnoschiuma", "Shampoo", "Sapone", "Dentifricio",
-            "Deodorante", "Prodotti pre barba", "Prodotti dopo barba",
-            "Igiene orale", "Igiene personale",
-        ],
-    },
+# OFF tag → (our Category, our SubCategory)
+# We search OFF by the first tag in each list; extras are used for classification fallback.
+CATEGORY_SEARCH_MAP: dict[tuple[str, str], list[str]] = {
+    # ── Dairy & Eggs ──────────────────────────────────────────────
+    ("Dairy & Eggs", "Milk"):    ["milks"],
+    ("Dairy & Eggs", "Cheese"):  ["cheeses"],
+    ("Dairy & Eggs", "Yogurt"):  ["yogurts"],
+    ("Dairy & Eggs", "Eggs"):    ["eggs"],
+
+    # ── Bread & Bakery ────────────────────────────────────────────
+    ("Bread & Bakery", "Bread"):       ["breads"],
+    ("Bread & Bakery", "Baked Goods"): ["biscuits", "pastries"],
+
+    # ── Pasta & Rice ──────────────────────────────────────────────
+    ("Pasta & Rice", "Pasta"):  ["pastas"],
+    ("Pasta & Rice", "Rice"):   ["rices"],
+
+    # ── Meat & Fish ───────────────────────────────────────────────
+    ("Meat & Fish", "Fresh Meat"):  ["meats"],
+    ("Meat & Fish", "Cured Meats"): ["sausages", "hams"],
+    ("Meat & Fish", "Fresh Fish"):  ["fishes"],
+
+    # ── Fruits & Vegetables ───────────────────────────────────────
+    ("Fruits & Vegetables", "Fresh Fruits"):     ["fruits"],
+    ("Fruits & Vegetables", "Fresh Vegetables"): ["vegetables"],
+
+    # ── Beverages ─────────────────────────────────────────────────
+    ("Beverages", "Alcoholic Beverages"):     ["wines", "beers"],
+    ("Beverages", "Non-Alcoholic Beverages"): ["fruit-juices", "waters", "soft-drinks"],
+
+    # ── Canned & Preserved ────────────────────────────────────────
+    ("Canned & Preserved", "Canned Goods"):      ["canned-foods"],
+    ("Canned & Preserved", "Oils & Condiments"): ["olive-oils", "vinegars", "sauces"],
+
+    # ── Snacks & Sweets ───────────────────────────────────────────
+    ("Snacks & Sweets", "Snacks"):             ["chips-and-fries", "nuts"],
+    ("Snacks & Sweets", "Sweets & Chocolate"): ["chocolates", "candies"],
+    ("Snacks & Sweets", "Ice Cream"):          ["ice-creams"],
+
+    # ── Household & Personal Care ─────────────────────────────────
+    # OFF has very few non-food items, so we use broader tags
+    ("Household & Personal Care", "Cleaning Products"): ["cleaning-products"],
+    ("Household & Personal Care", "Personal Care"):     ["body-care"],
 }
 
 
-def find_category(subcategory_name: str) -> tuple[str, str]:
+def find_category(off_categories_tags: list[str]) -> tuple[str, str]:
     """
-    Find the English (category, subcategory) pair for an Italian subcategory name.
+    Given a product's categories_tags list from OFF, return the best
+    (Category, SubCategory) match from our schema.
 
-    Returns ("Uncategorized", "Uncategorized") if no match is found.
+    Falls back to ("Uncategorized", "Uncategorized").
     """
-    for main_category, subcategories in CATEGORY_MAPPING.items():
-        for sub_key, italian_names in subcategories.items():
-            if subcategory_name in italian_names:
-                return main_category, sub_key
+    if not off_categories_tags:
+        return "Uncategorized", "Uncategorized"
+
+    # Build a set of the tag leaves (e.g. "en:milks" → "milks")
+    tag_leaves = {t.split(":")[-1] for t in off_categories_tags}
+
+    for (cat, subcat), search_tags in CATEGORY_SEARCH_MAP.items():
+        for tag in search_tags:
+            if tag in tag_leaves:
+                return cat, subcat
+
     return "Uncategorized", "Uncategorized"
