@@ -70,6 +70,8 @@ AVAILABLE_STORES = ["Penny", "Conad", "Coop", "Crai", "Decò", "Dodecà"]
 AVAILABLE_LOCATIONS = [
     {"city": "Roma", "country": "Italy"},
     {"city": "Napoli", "country": "Italy"},
+    {"city": "Orvieto", "country": "Italy"},
+    {"city": "Viterbo", "country": "Italy"},
 ]
 
 # Logging

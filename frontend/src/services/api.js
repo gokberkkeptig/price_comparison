@@ -40,6 +40,10 @@ export function scanReceipt(imageBase64) {
   return api.post('/receipt/scan', { image: imageBase64 })
 }
 
+export function confirmReceipt(receiptData) {
+  return api.post('/receipt/confirm', receiptData)
+}
+
 // Auth — handled by the store directly, but exposed here for flexibility
 export function login(login, password) {
   return api.post('/auth/login', { login, password })

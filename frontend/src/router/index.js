@@ -1,3 +1,4 @@
+import { route } from 'quasar/wrappers'
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
@@ -53,25 +54,27 @@ const routes = [
   },
 ]
 
-const router = createRouter({
-  history: createWebHistory(),
-  routes,
-  scrollBehavior() {
-    return { top: 0 }
-  },
+export default route(function (/* { store, ssrContext } */) {
+  const Router = createRouter({
+    history: createWebHistory(),
+    routes,
+    scrollBehavior() {
+      return { top: 0 }
+    },
+  })
+
+  // Navigation guards
+  Router.beforeEach((to, _from, next) => {
+    const auth = useAuthStore()
+
+    if (to.meta.requiresAuth && !auth.isLoggedIn) {
+      next({ name: 'login', query: { redirect: to.fullPath } })
+    } else if (to.meta.guest && auth.isLoggedIn) {
+      next({ name: 'home' })
+    } else {
+      next()
+    }
+  })
+
+  return Router
 })
-
-// Navigation guards
-router.beforeEach((to, _from, next) => {
-  const auth = useAuthStore()
-
-  if (to.meta.requiresAuth && !auth.isLoggedIn) {
-    next({ name: 'login', query: { redirect: to.fullPath } })
-  } else if (to.meta.guest && auth.isLoggedIn) {
-    next({ name: 'home' })
-  } else {
-    next()
-  }
-})
-
-export default router

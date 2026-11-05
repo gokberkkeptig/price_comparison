@@ -16,7 +16,7 @@ bcrypt==4.2.0
 # Environment
 python-dotenv==1.0.1
 
-# OCR & AI (optional — needed for receipt scanning)
-# Pillow==10.4.0
-# pytesseract==0.3.13
-# langchain-ollama==0.2.0
+# OCR & AI (receipt scanning)
+Pillow==10.4.0
+pytesseract==0.3.13
+langchain-ollama==0.2.0

@@ -71,16 +71,6 @@
       </div>
     </div>
 
-    <!-- Compare bar -->
-    <q-banner v-if="compareList.length > 0" class="bg-accent text-white q-mb-md" rounded>
-      <template #avatar><q-icon name="compare_arrows" /></template>
-      {{ compareList.length }}/4 prodotti selezionati per il confronto
-      <template #action>
-        <q-btn flat label="Confronta" @click="goCompare" :disable="compareList.length < 2" />
-        <q-btn flat label="Annulla" @click="clearCompare" />
-      </template>
-    </q-banner>
-
     <!-- Products Grid -->
     <div v-if="loading && products.length === 0" class="row q-col-gutter-md">
       <div v-for="n in 8" :key="n" class="col-6 col-sm-4 col-md-3">
@@ -106,18 +96,10 @@
         :key="product.product_id"
         class="col-6 col-sm-4 col-md-3"
       >
-        <q-card class="product-card full-height">
-          <!-- Compare checkbox -->
-          <q-checkbox
-            :model-value="isInCompare(product.product_id)"
-            @update:model-value="toggleCompare(product.product_id)"
-            class="absolute-top-right q-ma-xs"
-            style="z-index: 1"
-            dense
-            color="accent"
-            :disable="!isInCompare(product.product_id) && compareList.length >= 4"
-          />
-
+        <q-card
+          class="product-card full-height"
+          :class="{ 'compare-selected': compareStore.has(product.product_id) }"
+        >
           <q-img
             :src="product.image_url || 'https://via.placeholder.com/300x300?text=No+Image'"
             :ratio="1"
@@ -158,6 +140,21 @@
               />
             </div>
           </q-card-section>
+
+          <!-- Compare button -->
+          <q-card-actions class="q-pt-none">
+            <q-btn
+              flat
+              dense
+              no-caps
+              class="full-width"
+              :color="compareStore.has(product.product_id) ? 'negative' : 'accent'"
+              :icon="compareStore.has(product.product_id) ? 'remove_circle_outline' : 'compare_arrows'"
+              :label="compareStore.has(product.product_id) ? 'Rimuovi dal confronto' : 'Confronta'"
+              @click.stop="compareStore.toggle(product.product_id)"
+              :disable="!compareStore.has(product.product_id) && compareStore.isFull"
+            />
+          </q-card-actions>
         </q-card>
       </div>
     </div>
@@ -173,6 +170,38 @@
         @click="fetchMore"
       />
     </div>
+
+    <!-- Sticky compare bar -->
+    <transition name="slide-up">
+      <div v-if="compareStore.count > 0" class="compare-bar">
+        <div class="compare-bar__inner row items-center q-gutter-sm">
+          <q-icon name="compare_arrows" size="24px" color="white" />
+          <span class="text-white text-weight-medium">
+            {{ compareStore.count }} prodott{{ compareStore.count === 1 ? 'o' : 'i' }} selezionat{{ compareStore.count === 1 ? 'o' : 'i' }}
+          </span>
+          <q-space />
+          <q-btn
+            flat
+            dense
+            no-caps
+            color="white"
+            label="Svuota"
+            icon="clear"
+            @click="compareStore.clear()"
+          />
+          <q-btn
+            unelevated
+            no-caps
+            color="white"
+            text-color="accent"
+            label="Vai al confronto"
+            icon="arrow_forward"
+            :disable="compareStore.count < 2"
+            @click="goCompare"
+          />
+        </div>
+      </div>
+    </transition>
   </q-page>
 </template>
 
@@ -181,9 +210,11 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchProducts, fetchCategories, fetchStores, fetchLocations } from '../services/api'
 import { useCartStore } from '../stores/cart'
+import { useCompareStore } from '../stores/compare'
 
 const router = useRouter()
 const cartStore = useCartStore()
+const compareStore = useCompareStore()
 
 const products = ref([])
 const loading = ref(false)
@@ -203,30 +234,8 @@ const categoryOptions = ref([])
 const storeOptions = ref([])
 const cityOptions = ref([])
 
-// Compare
-const compareList = ref(JSON.parse(localStorage.getItem('compareProducts') || '[]'))
-
-function isInCompare(id) {
-  return compareList.value.includes(id)
-}
-
-function toggleCompare(id) {
-  const idx = compareList.value.indexOf(id)
-  if (idx >= 0) {
-    compareList.value.splice(idx, 1)
-  } else if (compareList.value.length < 4) {
-    compareList.value.push(id)
-  }
-  localStorage.setItem('compareProducts', JSON.stringify(compareList.value))
-}
-
-function clearCompare() {
-  compareList.value = []
-  localStorage.setItem('compareProducts', '[]')
-}
-
 function goCompare() {
-  router.push({ name: 'compare', query: { ids: compareList.value.join(',') } })
+  router.push({ name: 'compare', query: { ids: compareStore.ids.join(',') } })
 }
 
 // Fetch products
@@ -234,7 +243,6 @@ async function loadProducts(append = false) {
   loading.value = true
   try {
     const params = { ...filters, page: page.value, per_page: 20 }
-    // Remove empty values
     Object.keys(params).forEach((k) => {
       if (!params[k] && params[k] !== 0) delete params[k]
     })
@@ -265,7 +273,6 @@ function fetchMore() {
   loadProducts(true)
 }
 
-// Load filter options
 async function loadFilters() {
   try {
     const [catRes, storeRes, locRes] = await Promise.all([
@@ -295,3 +302,36 @@ onMounted(() => {
   loadProducts()
 })
 </script>
+
+<style lang="scss" scoped>
+.compare-selected {
+  outline: 2px solid var(--q-accent);
+  outline-offset: -2px;
+}
+
+.compare-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--q-accent);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.compare-bar__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 16px;
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
+}
+</style>

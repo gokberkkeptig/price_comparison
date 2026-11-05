@@ -18,8 +18,8 @@ def compare_products():
     except ValueError:
         return jsonify({"error": "Product IDs must be integers"}), 400
 
-    if len(product_ids) > 4:
-        return jsonify({"error": "You can compare up to 4 products at a time"}), 400
+    if len(product_ids) > 6:
+        return jsonify({"error": "You can compare up to 6 products at a time"}), 400
 
     if not product_ids:
         return jsonify({"error": "At least one product ID is required"}), 400
