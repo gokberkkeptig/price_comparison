@@ -1,51 +1,55 @@
-# Ignore node_modules directory
-node_modules/
-
-# Ignore log files
-*.log
-
-# Ignore build directories
-dist/
-build/
-
-# Ignore environment variable files
-.env
-
-# Ignore OS generated files
-.DS_Store
-Thumbs.db
-
-# Ignore IDE specific files
-.vscode/
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Ignore coverage reports
-coverage/
-
-# Ignore dependency directories
-jspm_packages/
-
-# Ignore compiled files
-*.class
-*.dll
-*.exe
-*.o
-*.so
-
-# Ignore Python specific files
+# Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-.Python
-env/
-.venv/
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.so
 venv/
-ENV/
-env.bak/
-venv.bak/
+.venv/
+env/
+
+# Environment
+.env
+*.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/.quasar/
+npm-debug.log*
+yarn-error.log*
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+
+# Flask session files
+flask_session/
+
+# Docker
+docker-compose.override.yml
+
+# Crawler
+crawler/*.log
+
+# Old project files (kept in git history)
+market_place_web/
+db/

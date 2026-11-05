@@ -1,0 +1,41 @@
+// Global styles
+
+body {
+  background-color: #f5f5f5;
+}
+
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+// Product card hover effect
+.product-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+}
+
+// Price badge
+.price-badge {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1B5E20;
+}
+
+.price-badge--cheapest {
+  color: #fff;
+  background-color: #4CAF50;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+// Store logo placeholder
+.store-chip {
+  text-transform: capitalize;
+}
